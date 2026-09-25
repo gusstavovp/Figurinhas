@@ -1,6 +1,6 @@
 # Álbum Cósmico — Supabase + Vercel
 
-Aplicação Vite com cadastro e login por e-mail e senha, coleção de 100 figurinhas, pacote diário, moedas Suco de Caju e progresso persistente no Supabase.
+Aplicação Vite com cadastro e login por e-mail e senha, coleção de 110 figurinhas do Pedro Víctor, pacote diário, missões com minijogos, moedas Suco de Caju e progresso persistente no Supabase.
 
 ## Segurança dos dados
 
@@ -14,7 +14,7 @@ Aplicação Vite com cadastro e login por e-mail e senha, coleção de 100 figur
 ## 1. Criar e configurar o Supabase
 
 1. Crie um projeto em [supabase.com](https://supabase.com/).
-2. Abra **SQL Editor**, copie o conteúdo de `supabase/migrations/202609250001_album.sql` e execute.
+2. Abra **SQL Editor** e execute, em ordem, os arquivos de `supabase/migrations/`.
 3. Em **Authentication → Providers → Email**, mantenha e-mail e senha habilitados.
 4. Em **Connect**, copie a URL do projeto e a chave `sb_publishable_...`.
 
