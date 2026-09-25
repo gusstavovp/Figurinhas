@@ -1,0 +1,18 @@
+{
+  "name": "album-cosmico",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "prepare:html": "node scripts/prepare-vite.mjs",
+    "dev": "npm run prepare:html && vite",
+    "build": "npm run prepare:html && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4"
+  },
+  "devDependencies": {
+    "vite": "^7.1.7"
+  }
+}
