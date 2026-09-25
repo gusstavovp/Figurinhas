@@ -1,4 +1,4 @@
-# Álbum Cósmico — Supabase + Vercel
+# Álbum Pedro Víctor — Supabase + Vercel
 
 Aplicação Vite com cadastro e login por e-mail e senha, coleção de 110 figurinhas do Pedro Víctor, pacote diário, missões com minijogos, moedas Suco de Caju e progresso persistente no Supabase.
 
