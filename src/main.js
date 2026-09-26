@@ -221,7 +221,33 @@ async function handleAuth(event) {
   try { if (registerMode) { const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { name } } }); if (error) throw error; if (!data.session) { byId("authError").style.color = "#5fe0a1"; byId("authError").textContent = "Conta criada! Confirme o e-mail para entrar."; return; } } else { const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) throw error; } } catch (error) { byId("authError").style.color = "#ff9a8b"; byId("authError").textContent = error.message; } finally { button.disabled = false; button.textContent = registerMode ? "Criar conta" : "Entrar"; }
 }
 function toggleAuth() { registerMode = !registerMode; byId("authTitle").textContent = registerMode ? "Criar sua conta" : "Entrar no álbum"; byId("nameField").style.display = registerMode ? "block" : "none"; byId("authName").required = registerMode; byId("authPassword").autocomplete = registerMode ? "new-password" : "current-password"; byId("authSubmit").textContent = registerMode ? "Criar conta" : "Entrar"; byId("authToggle").textContent = registerMode ? "Já tenho uma conta" : "Ainda não tenho conta"; byId("authError").textContent = ""; }
-async function initialize() { if (!configured) { byId("authMessage").textContent = "Conecte as variáveis do Supabase para iniciar."; byId("authError").textContent = "VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY não configuradas."; byId("authSubmit").disabled = true; return; } const { data: { session } } = await supabase.auth.getSession(); if (session) await loadProfile(session.user); supabase.auth.onAuthStateChange((event, session) => { if (event === "SIGNED_IN" && session) setTimeout(() => loadProfile(session.user), 0); if (event === "SIGNED_OUT") location.reload(); }); }
+function showSessionError(error) {
+  const message = error?.message || "Não foi possível carregar sua sessão.";
+  console.error("Falha ao iniciar o álbum:", message);
+  byId("accountEmail").textContent = "Entre para jogar";
+  byId("authError").style.color = "#ff9a8b";
+  byId("authError").textContent = `${message} Tente entrar novamente.`;
+}
+async function initialize() {
+  if (!configured) {
+    byId("authMessage").textContent = "Conecte as variáveis do Supabase para iniciar.";
+    byId("authError").textContent = "VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY não configuradas.";
+    byId("authSubmit").disabled = true;
+    return;
+  }
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_IN" && session) setTimeout(() => loadProfile(session.user).catch(showSessionError), 0);
+    if (event === "SIGNED_OUT") location.reload();
+  });
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    if (session) await loadProfile(session.user);
+    else byId("accountEmail").textContent = "Entre para jogar";
+  } catch (error) {
+    showSessionError(error);
+  }
+}
 
 document.querySelectorAll("[data-jump]").forEach(button => button.onclick = () => { document.querySelectorAll("[data-jump]").forEach(item => item.classList.toggle("active", item === button)); byId(button.dataset.jump).scrollIntoView({ behavior: "smooth" }); });
 document.querySelectorAll(".filter[data-filter]").forEach(button => button.onclick = () => { currentFilter = button.dataset.filter; document.querySelectorAll(".filter[data-filter]").forEach(item => item.classList.toggle("active", item === button)); renderAlbum(); });
