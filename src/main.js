@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://umayamlvxcdccmkpghmg.supabase.co";
+const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "sb_publishable_R5rN_XnQ7u_B-bv900ZY1g_K6V_wIIl";
 const configured = supabaseUrl?.startsWith("https://") && supabaseKey?.startsWith("sb_publishable_");
 const supabase = configured ? createClient(supabaseUrl, supabaseKey) : null;
 const TOTAL_CARDS = 110;
