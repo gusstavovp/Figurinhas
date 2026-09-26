@@ -61,12 +61,13 @@ const cards = cardNames.map((name, index) => ({
 const juiceRewards = { common: 2, uncommon: 4, rare: 7, epic: 12, mythic: 20, legendary: 35, secret: 60 };
 const missions = [
   { id: "daily_pack", icon: "🎁", title: "Explorador diário", description: "Abra o pacote grátis do dia.", reward: "Pacote + 5 🧃" },
-  { id: "memory", icon: "🧠", title: "Memória cósmica", description: "Encontre quatro pares antes de esquecer.", reward: "+8 🧃" },
-  { id: "quiz", icon: "❓", title: "Quiz do Pedro", description: "Acerte a pergunta diária sobre o álbum.", reward: "+6 🧃" },
-  { id: "caju", icon: "🧃", title: "Caça ao caju", description: "Pegue cinco cajus antes do tempo acabar.", reward: "+10 🧃" }
+  { id: "memory", icon: "🧠", title: "Memória cósmica", description: "Encontre seis pares em 40 segundos e com no máximo 12 erros.", reward: "+8 🧃" },
+  { id: "quiz", icon: "❓", title: "Quiz do Pedro", description: "Acerte três perguntas seguidas. Um erro encerra a rodada.", reward: "+6 🧃" },
+  { id: "caju", icon: "🧃", title: "Caça ao caju", description: "Pegue dez cajus móveis em apenas 12 segundos.", reward: "+10 🧃" }
 ];
 const state = { owned: {}, juice: 0, lastOpened: null, packs: 0, activities: {}, activityDate: null };
-let currentFilter = "all", currentRarity = "all", registerMode = false, dailyAvailable = false, gameTimer = null;
+let currentFilter = "all", currentRarity = "all", registerMode = false, dailyAvailable = false, gameTimer = null, targetTimer = null;
+let currentUser = null, socialProfile = null, friends = [], friendships = [], trades = [], currentDetailCard = null;
 const byId = id => document.getElementById(id);
 const rarity = id => rarities.find(r => r.id === id);
 const todayKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Fortaleza" }).format(new Date());
@@ -102,10 +103,10 @@ function renderMissions() {
   document.querySelectorAll("[data-mission]").forEach(button => button.onclick = () => { const id = button.dataset.mission; if (id === "daily_pack") byId("openPack").scrollIntoView({ behavior: "smooth", block: "center" }); else startGame(id); });
 }
 function updateDaily() { const button = byId("openPack"); button.disabled = !dailyAvailable; button.textContent = dailyAvailable ? "Abrir pacote grátis" : "Pacote de hoje aberto"; byId("packMessage").textContent = dailyAvailable ? "Um pacote está esperando por você." : "Volte amanhã para uma nova surpresa."; byId("countdown").textContent = dailyAvailable ? "Disponível agora" : "Novo pacote à meia-noite"; }
-function renderAll() { renderStats(); renderAlbum(); updateDaily(); renderMissions(); }
+function renderAll() { renderStats(); renderAlbum(); updateDaily(); renderMissions(); renderOwnedOptions(); }
 function openModal(id) { byId(id).classList.add("open"); byId(id).querySelector(".close").focus(); document.body.style.overflow = "hidden"; }
-function closeModal(id) { if (id === "gameModal" && gameTimer) clearInterval(gameTimer); gameTimer = null; byId(id).classList.remove("open"); document.body.style.overflow = ""; }
-function showDetail(card) { const r = rarity(card.rarity); byId("detailIcon").innerHTML = `<img src="${card.image}" alt="${card.name}">`; byId("detailRarity").textContent = `#${String(card.id).padStart(3, "0")} · ${r.name}`; byId("detailRarity").style.color = r.color; byId("detailTitle").textContent = card.name; byId("detailText").textContent = card.description + (state.owned[card.id] > 1 ? ` Você possui ${state.owned[card.id]} cópias.` : ""); openModal("detailModal"); }
+function closeModal(id) { if (id === "gameModal") { if (gameTimer) clearInterval(gameTimer); if (targetTimer) clearInterval(targetTimer); } gameTimer = null; targetTimer = null; byId(id).classList.remove("open"); document.body.style.overflow = ""; }
+function showDetail(card) { currentDetailCard = card; const r = rarity(card.rarity); byId("detailIcon").innerHTML = `<img src="${card.image}" alt="${card.name}">`; byId("detailRarity").textContent = `#${String(card.id).padStart(3, "0")} · ${r.name}`; byId("detailRarity").style.color = r.color; byId("detailTitle").textContent = card.name; byId("detailText").textContent = card.description + (state.owned[card.id] > 1 ? ` Você possui ${state.owned[card.id]} cópias.` : ""); openModal("detailModal"); }
 function burst() { const box = byId("confetti"), colors = rarities.map(r => r.color); box.innerHTML = ""; for (let i = 0; i < 42; i++) { const piece = document.createElement("i"); piece.style.cssText = `left:${Math.random() * 100}%;--x:${(Math.random() - .5) * 300}px;--c:${colors[i % colors.length]};animation-delay:${Math.random() * .4}s`; box.appendChild(piece); } setTimeout(() => box.innerHTML = "", 2500); }
 function showPack(data, source) {
   const payload = typeof data === "string" ? JSON.parse(data) : data; Object.assign(state, payload.state); dailyAvailable = payload.daily_available;
@@ -122,36 +123,98 @@ async function completeActivity(id, score) {
   state.juice = data.coins; state.activities = data.activities || {}; state.activityDate = data.activity_date; renderStats(); renderMissions(); burst();
   byId("gameContent").innerHTML = `<p class="reward-toast">Missão concluída! +${data.reward} 🧃 Suco de Caju</p><button class="primary" data-close-game style="display:block;margin:22px auto 0">Voltar às missões</button>`; byId("gameContent").querySelector("[data-close-game]").onclick = () => closeModal("gameModal");
 }
+const escapeHtml = value => String(value || "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+const ownedCards = () => cards.filter(card => (state.owned[card.id] || 0) > 0);
+const optionForCard = (card, withCount = false) => `<option value="${card.id}">#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}${withCount ? ` (${state.owned[card.id]}x)` : ""}</option>`;
+function renderOwnedOptions() {
+  const owned = ownedCards();
+  byId("postCard").innerHTML = owned.length ? owned.map(card => optionForCard(card)).join("") : '<option value="">Abra um pacote primeiro</option>';
+  byId("offeredCard").innerHTML = owned.length ? owned.map(card => optionForCard(card, true)).join("") : '<option value="">Sem figurinhas</option>';
+}
+function renderSocialProfile() {
+  if (!socialProfile) return;
+  byId("socialName").textContent = socialProfile.display_name;
+  byId("socialHandle").textContent = `@${socialProfile.handle}`;
+  const featured = cards.find(card => card.id === socialProfile.featured_card);
+  byId("featuredImage").src = featured?.image || ownedCards()[0]?.image || cards[0].image;
+  byId("featuredImage").style.opacity = featured ? "1" : ".35";
+  byId("featuredName").textContent = featured ? featured.name : "Escolha uma figurinha em destaque";
+}
+function friendFrom(row) { return row.requester_id === currentUser.id ? row.addressee : row.requester; }
+function renderFriends() {
+  const accepted = friendships.filter(row => row.status === "accepted");
+  friends = accepted.map(friendFrom).filter(Boolean);
+  byId("friendList").innerHTML = friends.length ? friends.map(friend => `<div class="friend-row"><div><b>${escapeHtml(friend.display_name)}</b><small>@${escapeHtml(friend.handle)}</small></div><button class="ghost" data-trade-friend="${friend.user_id}">Trocar</button></div>`).join("") : '<div class="empty-small">Adicione alguém pelo @ para começar.</div>';
+  const incoming = friendships.filter(row => row.status === "pending" && row.addressee_id === currentUser.id);
+  const outgoing = friendships.filter(row => row.status === "pending" && row.requester_id === currentUser.id);
+  byId("requestList").innerHTML = incoming.map(row => `<div class="friend-row"><div><b>${escapeHtml(row.requester.display_name)}</b><small>@${escapeHtml(row.requester.handle)}</small></div><div class="row-actions"><button class="primary" data-friend-response="${row.id}" data-accept="true">Aceitar</button><button class="ghost" data-friend-response="${row.id}" data-accept="false">Recusar</button></div></div>`).join("") + outgoing.map(row => `<div class="friend-row"><div><b>${escapeHtml(row.addressee.display_name)}</b><small>Pedido enviado</small></div></div>`).join("") || '<div class="empty-small">Nenhum pedido pendente.</div>';
+  byId("tradeFriend").innerHTML = '<option value="">Escolha um amigo</option>' + friends.map(friend => `<option value="${friend.user_id}">${escapeHtml(friend.display_name)} · @${escapeHtml(friend.handle)}</option>`).join("");
+  document.querySelectorAll("[data-friend-response]").forEach(button => button.onclick = () => respondFriend(Number(button.dataset.friendResponse), button.dataset.accept === "true"));
+  document.querySelectorAll("[data-trade-friend]").forEach(button => button.onclick = () => { byId("tradeFriend").value = button.dataset.tradeFriend; byId("tradeFriend").dispatchEvent(new Event("change")); byId("trades").scrollIntoView({ behavior: "smooth" }); });
+}
+function renderFeed(posts) {
+  byId("feedList").innerHTML = posts.length ? posts.map(post => { const card = cards.find(item => item.id === post.card_id), r = rarity(card.rarity); return `<article class="feed-post" style="--post-color:${r.color}"><img src="${card.image}" alt="${escapeHtml(card.name)}"><div><div class="post-meta"><b>${escapeHtml(post.author.display_name)}</b> · @${escapeHtml(post.author.handle)} · ${new Date(post.created_at).toLocaleDateString("pt-BR")}</div><p class="post-caption">${escapeHtml(post.caption) || "Compartilhou uma nova favorita."}</p><div class="post-card-name">#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)} · ${r.name}</div></div></article>`; }).join("") : '<div class="empty-small">O feed está vazio. Publique uma figurinha ou adicione amigos.</div>';
+}
+function tradeParty(trade) { return trade.proposer_id === currentUser.id ? trade.recipient : trade.proposer; }
+function renderTrades() {
+  const pending = trades.filter(trade => trade.status === "pending");
+  byId("tradeList").innerHTML = pending.length ? pending.map(trade => { const offered = cards.find(card => card.id === trade.offered_card_id), requested = cards.find(card => card.id === trade.requested_card_id), other = tradeParty(trade), incoming = trade.recipient_id === currentUser.id; return `<div class="trade-row"><img src="${offered.image}" alt="${escapeHtml(offered.name)}"><div><b>${escapeHtml(offered.name)}</b><small>${incoming ? `${escapeHtml(other.display_name)} oferece` : "Você oferece"}</small></div><b>↔</b><div><b>${escapeHtml(requested.name)}</b><small>${incoming ? "Em troca da sua" : `De ${escapeHtml(other.display_name)}`}</small></div><div class="row-actions">${incoming ? `<button class="primary" data-trade-response="${trade.id}" data-accept="true">Aceitar</button><button class="ghost" data-trade-response="${trade.id}" data-accept="false">Recusar</button>` : `<button class="ghost" data-trade-cancel="${trade.id}">Cancelar</button>`}</div></div>`; }).join("") : '<div class="empty-small">Nenhuma troca pendente.</div>';
+  document.querySelectorAll("[data-trade-response]").forEach(button => button.onclick = () => respondTrade(Number(button.dataset.tradeResponse), button.dataset.accept === "true"));
+  document.querySelectorAll("[data-trade-cancel]").forEach(button => button.onclick = () => cancelTrade(Number(button.dataset.tradeCancel)));
+}
+async function refreshSocial() {
+  const profileQuery = supabase.from("social_profiles").select("user_id,handle,display_name,featured_card").eq("user_id", currentUser.id).single();
+  const friendshipQuery = supabase.from("friendships").select("id,requester_id,addressee_id,status,requester:social_profiles!friendships_requester_id_fkey(user_id,handle,display_name,featured_card),addressee:social_profiles!friendships_addressee_id_fkey(user_id,handle,display_name,featured_card)").order("created_at", { ascending: false });
+  const feedQuery = supabase.from("feed_posts").select("id,card_id,caption,created_at,author:social_profiles!feed_posts_user_id_fkey(user_id,handle,display_name)").order("created_at", { ascending: false }).limit(40);
+  const tradeQuery = supabase.from("sticker_trades").select("id,proposer_id,recipient_id,offered_card_id,requested_card_id,status,created_at,proposer:social_profiles!sticker_trades_proposer_id_fkey(user_id,handle,display_name),recipient:social_profiles!sticker_trades_recipient_id_fkey(user_id,handle,display_name)").order("created_at", { ascending: false }).limit(50);
+  const [profileResult, friendshipResult, feedResult, tradeResult] = await Promise.all([profileQuery, friendshipQuery, feedQuery, tradeQuery]);
+  for (const result of [profileResult, friendshipResult, feedResult, tradeResult]) if (result.error) throw result.error;
+  socialProfile = profileResult.data; friendships = friendshipResult.data || []; trades = tradeResult.data || [];
+  renderSocialProfile(); renderFriends(); renderFeed(feedResult.data || []); renderTrades(); renderOwnedOptions();
+}
+async function publishSticker(cardId, caption = "") { const { error } = await supabase.rpc("publish_sticker", { p_card_id: Number(cardId), p_caption: caption }); if (error) throw error; await refreshSocial(); }
+async function featureSticker(cardId) { const { error } = await supabase.rpc("set_featured_sticker", { p_card_id: Number(cardId) }); if (error) throw error; await refreshSocial(); }
+async function respondFriend(id, accept) { const { error } = await supabase.rpc("respond_friend_request", { p_friendship_id: id, p_accept: accept }); if (error) return alert(error.message); await refreshSocial(); }
+async function respondTrade(id, accept) { const { error } = await supabase.rpc("respond_sticker_trade", { p_trade_id: id, p_accept: accept }); if (error) return alert(error.message); await loadProfile(currentUser); }
+async function cancelTrade(id) { const { error } = await supabase.rpc("cancel_sticker_trade", { p_trade_id: id }); if (error) return alert(error.message); await refreshSocial(); }
+function gameLoss(message, retry) { if (gameTimer) clearInterval(gameTimer); if (targetTimer) clearInterval(targetTimer); gameTimer = null; targetTimer = null; byId("gameContent").innerHTML = `<div class="game-loss"><h3>Rodada perdida</h3><p>${message}</p><button class="primary" data-retry>Tentar novamente</button></div>`; byId("gameContent").querySelector("[data-retry]").onclick = retry; }
 function startMemory() {
-  const deck = ["🧃", "🌟", "🎮", "🐺", "🧃", "🌟", "🎮", "🐺"].sort(() => Math.random() - .5); let first = null, lock = false, matches = 0;
-  byId("gameContent").innerHTML = '<p class="game-copy">Encontre os quatro pares.</p><div class="memory-grid"></div><div class="game-status">0 / 4 pares</div>';
+  const symbols = ["🧃", "🌟", "🎮", "🐺", "⚡", "🪐"], deck = [...symbols, ...symbols].sort(() => Math.random() - .5); let first = null, lock = false, matches = 0, misses = 0, seconds = 40, finished = false;
+  byId("gameContent").innerHTML = '<p class="game-copy">Encontre os seis pares antes do tempo acabar. Você perde com 12 erros.</p><div class="game-hud"><span id="memoryTime">⏱ 40s</span><span id="memoryMisses">Erros: 0/12</span></div><div class="memory-grid"></div><div class="game-status">0 / 6 pares</div>';
   const grid = byId("gameContent").querySelector(".memory-grid"), status = byId("gameContent").querySelector(".game-status");
-  deck.forEach(icon => { const button = document.createElement("button"); button.className = "memory-card"; button.textContent = icon; button.onclick = () => { if (lock || button.classList.contains("matched") || button === first) return; button.classList.add("open"); if (!first) { first = button; return; } if (first.textContent === button.textContent) { first.classList.add("matched"); button.classList.add("matched"); first = null; matches++; status.textContent = `${matches} / 4 pares`; if (matches === 4) completeActivity("memory", 4).catch(error => alert(error.message)); } else { lock = true; const previous = first; first = null; setTimeout(() => { previous.classList.remove("open"); button.classList.remove("open"); lock = false; }, 650); } }; grid.appendChild(button); });
+  const lose = message => { if (finished) return; finished = true; gameLoss(message, startMemory); };
+  gameTimer = setInterval(() => { seconds--; const clock = byId("memoryTime"); if (clock) clock.textContent = `⏱ ${seconds}s`; if (seconds <= 0) lose("O tempo acabou antes de você encontrar os seis pares."); }, 1000);
+  deck.forEach(icon => { const button = document.createElement("button"); button.className = "memory-card"; button.textContent = icon; button.onclick = () => { if (finished || lock || button.classList.contains("matched") || button === first) return; button.classList.add("open"); if (!first) { first = button; return; } if (first.textContent === button.textContent) { first.classList.add("matched"); button.classList.add("matched"); first = null; matches++; status.textContent = `${matches} / 6 pares`; if (matches === 6) { finished = true; clearInterval(gameTimer); gameTimer = null; completeActivity("memory", 6).catch(error => alert(error.message)); } } else { misses++; const missCopy = byId("memoryMisses"); if (missCopy) missCopy.textContent = `Erros: ${misses}/12`; if (misses >= 12) return lose("Você atingiu o limite de 12 erros."); lock = true; const previous = first; first = null; setTimeout(() => { previous.classList.remove("open"); button.classList.remove("open"); lock = false; }, 620); } }; grid.appendChild(button); });
 }
 const quizQuestions = [
   { question: "Qual é a moeda do jogo?", options: ["Suco de Caju", "Moeda Lunar", "Arroz e Feijão"], answer: 0 },
   { question: "Quantas figurinhas existem no álbum?", options: ["100", "110", "120"], answer: 1 },
   { question: "Qual raridade fica escondida no catálogo?", options: ["Rara", "Lendária", "Secreta"], answer: 2 },
-  { question: "Quanto custa um pacote misterioso?", options: ["10 🧃", "30 🧃", "60 🧃"], answer: 1 }
+  { question: "Quanto custa um pacote misterioso?", options: ["10 🧃", "30 🧃", "60 🧃"], answer: 1 },
+  { question: "Quantas figurinhas vêm em um pacote secreto?", options: ["7", "10", "12"], answer: 1 },
+  { question: "Qual pacote garante uma lendária e uma secreta?", options: ["Mítico", "Lendário", "Secreto"], answer: 2 }
 ];
 function startQuiz() {
-  const seed = [...todayKey()].reduce((sum, char) => sum + char.charCodeAt(0), 0), quiz = quizQuestions[seed % quizQuestions.length];
-  byId("gameContent").innerHTML = `<p class="game-copy">${quiz.question}</p><div class="quiz-options">${quiz.options.map((option, index) => `<button class="ghost" data-answer="${index}">${option}</button>`).join("")}</div><div class="game-status"></div>`;
-  const status = byId("gameContent").querySelector(".game-status"); byId("gameContent").querySelectorAll("[data-answer]").forEach(button => button.onclick = () => { if (Number(button.dataset.answer) === quiz.answer) { status.textContent = "Resposta certa!"; byId("gameContent").querySelectorAll("button").forEach(item => item.disabled = true); completeActivity("quiz", 1).catch(error => alert(error.message)); } else { status.textContent = "Quase! Tente outra resposta."; button.disabled = true; } });
+  const seed = [...todayKey()].reduce((sum, char) => sum + char.charCodeAt(0), 0), selected = [0, 1, 2].map(offset => quizQuestions[(seed + offset * 2) % quizQuestions.length]); let round = 0;
+  const showQuestion = () => { const quiz = selected[round]; byId("gameContent").innerHTML = `<div class="game-hud"><span>Pergunta ${round + 1}/3</span><span>❤️ Uma vida</span></div><p class="game-copy">${quiz.question}</p><div class="quiz-options">${quiz.options.map((option, index) => `<button class="ghost" data-answer="${index}">${option}</button>`).join("")}</div><div class="game-status">Acerte as três sem errar.</div>`; byId("gameContent").querySelectorAll("[data-answer]").forEach(button => button.onclick = () => { if (Number(button.dataset.answer) !== quiz.answer) return gameLoss("Uma resposta errada encerra o desafio de hoje.", startQuiz); round++; if (round === 3) completeActivity("quiz", 3).catch(error => alert(error.message)); else showQuestion(); }); };
+  showQuestion();
 }
 function startCaju() {
-  let caught = 0, seconds = 20; byId("gameContent").innerHTML = '<p class="game-copy">Clique no caju cinco vezes antes do tempo acabar.</p><div class="game-status">5 faltando · 20s</div><div class="caju-arena"><button class="caju-target" aria-label="Pegar Suco de Caju">🧃</button></div>';
-  const target = byId("gameContent").querySelector(".caju-target"), status = byId("gameContent").querySelector(".game-status"), move = () => { target.style.left = `${Math.random() * 82 + 2}%`; target.style.top = `${Math.random() * 72 + 4}%`; };
-  target.onclick = () => { caught++; status.textContent = `${5 - caught} faltando · ${seconds}s`; if (caught >= 5) { clearInterval(gameTimer); gameTimer = null; target.disabled = true; completeActivity("caju", 5).catch(error => alert(error.message)); } else move(); }; move();
-  gameTimer = setInterval(() => { seconds--; status.textContent = `${5 - caught} faltando · ${seconds}s`; if (seconds <= 0) { clearInterval(gameTimer); gameTimer = null; target.disabled = true; status.innerHTML = 'O tempo acabou. <button class="ghost" data-retry>Tentar novamente</button>'; status.querySelector("[data-retry]").onclick = startCaju; } }, 1000);
+  let caught = 0, seconds = 12, finished = false; byId("gameContent").innerHTML = '<p class="game-copy">O caju muda de lugar sozinho. Pegue dez antes do tempo acabar.</p><div class="game-status">10 faltando · 12s</div><div class="caju-arena"><button class="caju-target" aria-label="Pegar Suco de Caju">🧃</button></div>';
+  const target = byId("gameContent").querySelector(".caju-target"), status = byId("gameContent").querySelector(".game-status"), move = () => { if (finished) return; target.style.left = `${Math.random() * 88 + 2}%`; target.style.top = `${Math.random() * 80 + 3}%`; };
+  target.onclick = () => { if (finished) return; caught++; status.textContent = `${10 - caught} faltando · ${seconds}s`; if (caught >= 10) { finished = true; clearInterval(gameTimer); clearInterval(targetTimer); gameTimer = null; targetTimer = null; target.disabled = true; completeActivity("caju", 10).catch(error => alert(error.message)); } else move(); }; move();
+  targetTimer = setInterval(move, 650);
+  gameTimer = setInterval(() => { seconds--; status.textContent = `${10 - caught} faltando · ${seconds}s`; if (seconds <= 0) { finished = true; gameLoss(`Você pegou ${caught} de 10 cajus.`, startCaju); } }, 1000);
 }
 function startGame(id) { if (missionDone(id)) return; byId("gameTitle").textContent = missions.find(mission => mission.id === id)?.title || "Minijogo"; openModal("gameModal"); if (id === "memory") startMemory(); if (id === "quiz") startQuiz(); if (id === "caju") startCaju(); }
 
 async function loadProfile(user) {
+  currentUser = user;
   const [{ data: profile, error: profileError }, { data: progress, error: progressError }] = await Promise.all([supabase.from("profiles").select("name,email").eq("id", user.id).single(), supabase.from("album_progress").select("owned,coins,last_daily_pack,packs_opened,daily_activities,daily_activity_date").eq("user_id", user.id).single()]);
   if (profileError) throw profileError; if (progressError) throw progressError;
   state.owned = progress.owned || {}; state.juice = progress.coins || 0; state.lastOpened = progress.last_daily_pack; state.packs = progress.packs_opened || 0; state.activities = progress.daily_activity_date === todayKey() ? (progress.daily_activities || {}) : {}; state.activityDate = progress.daily_activity_date; dailyAvailable = progress.last_daily_pack !== todayKey();
   byId("accountEmail").textContent = profile.name || profile.email; byId("authGate").classList.add("ready"); renderOdds(); renderAll();
+  try { await refreshSocial(); } catch (error) { byId("feedList").innerHTML = `<div class="empty-small">Não foi possível carregar a área social: ${escapeHtml(error.message)}</div>`; }
 }
 async function handleAuth(event) {
   event.preventDefault(); const email = byId("authEmail").value.trim(), password = byId("authPassword").value, name = byId("authName").value.trim(), button = byId("authSubmit"); byId("authError").textContent = ""; button.disabled = true; button.textContent = registerMode ? "Criando conta…" : "Entrando…";
@@ -164,5 +227,11 @@ document.querySelectorAll("[data-jump]").forEach(button => button.onclick = () =
 document.querySelectorAll(".filter[data-filter]").forEach(button => button.onclick = () => { currentFilter = button.dataset.filter; document.querySelectorAll(".filter[data-filter]").forEach(item => item.classList.toggle("active", item === button)); renderAlbum(); });
 byId("rarityFilter").onchange = event => { currentRarity = event.target.value; renderAlbum(); }; byId("openPack").onclick = openDaily; byId("buyMystery").onclick = buyMystery; byId("showRules").onclick = () => openModal("rulesModal");
 document.querySelectorAll("[data-close]").forEach(button => button.onclick = () => closeModal(button.dataset.close)); document.querySelectorAll(".modal").forEach(modal => modal.onclick = event => { if (event.target === modal) closeModal(modal.id); }); document.addEventListener("keydown", event => { if (event.key === "Escape") document.querySelectorAll(".modal.open").forEach(modal => closeModal(modal.id)); });
+byId("postForm").addEventListener("submit", async event => { event.preventDefault(); const cardId = byId("postCard").value; if (!cardId) return; const button = event.submitter; button.disabled = true; try { await publishSticker(cardId, byId("postCaption").value); byId("postCaption").value = ""; } catch (error) { alert(error.message); } finally { button.disabled = false; } });
+byId("friendForm").addEventListener("submit", async event => { event.preventDefault(); const handle = byId("friendHandle").value.trim().replace(/^@/, "").toLowerCase(); if (!handle) return; const button = event.submitter; button.disabled = true; const { error } = await supabase.rpc("send_friend_request", { p_handle: handle }); button.disabled = false; if (error) return alert(error.message); byId("friendHandle").value = ""; await refreshSocial(); });
+byId("tradeFriend").addEventListener("change", async event => { const friendId = event.target.value; if (!friendId) { byId("requestedCard").innerHTML = '<option value="">Escolha o amigo primeiro</option>'; return; } const { data, error } = await supabase.from("album_progress").select("owned").eq("user_id", friendId).single(); if (error) return alert(error.message); const available = cards.filter(card => (data.owned?.[card.id] || 0) > 0); byId("requestedCard").innerHTML = available.length ? available.map(card => `<option value="${card.id}">#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)} (${data.owned[card.id]}x)</option>`).join("") : '<option value="">Este amigo ainda não tem figurinhas</option>'; });
+byId("tradeForm").addEventListener("submit", async event => { event.preventDefault(); const friend = byId("tradeFriend").value, offered = byId("offeredCard").value, requested = byId("requestedCard").value; if (!friend || !offered || !requested) return alert("Escolha o amigo e as duas figurinhas."); const button = event.submitter; button.disabled = true; const { error } = await supabase.rpc("propose_sticker_trade", { p_friend: friend, p_offered: Number(offered), p_requested: Number(requested) }); button.disabled = false; if (error) return alert(error.message); await refreshSocial(); });
+byId("detailPost").onclick = async () => { if (!currentDetailCard) return; byId("detailPost").disabled = true; try { await publishSticker(currentDetailCard.id); closeModal("detailModal"); byId("social").scrollIntoView({ behavior: "smooth" }); } catch (error) { alert(error.message); } finally { byId("detailPost").disabled = false; } };
+byId("detailFeature").onclick = async () => { if (!currentDetailCard) return; byId("detailFeature").disabled = true; try { await featureSticker(currentDetailCard.id); closeModal("detailModal"); } catch (error) { alert(error.message); } finally { byId("detailFeature").disabled = false; } };
 byId("authForm").addEventListener("submit", handleAuth); byId("authToggle").onclick = toggleAuth; byId("logoutButton").onclick = async event => { event.preventDefault(); await supabase?.auth.signOut(); };
 renderOdds(); renderAll(); initialize();
