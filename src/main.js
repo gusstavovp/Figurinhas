@@ -63,7 +63,10 @@ const missions = [
   { id: "daily_pack", icon: "🎁", title: "Explorador diário", description: "Abra o pacote grátis do dia.", reward: "Pacote + 5 🧃" },
   { id: "memory", icon: "🧠", title: "Memória cósmica", description: "Encontre seis pares em 40 segundos e com no máximo 12 erros.", reward: "+8 🧃" },
   { id: "quiz", icon: "❓", title: "Quiz do Pedro", description: "Acerte três perguntas seguidas. Um erro encerra a rodada.", reward: "+6 🧃" },
-  { id: "caju", icon: "🧃", title: "Caça ao caju", description: "Pegue dez cajus móveis em apenas 12 segundos.", reward: "+10 🧃" }
+  { id: "caju", icon: "🧃", title: "Caça ao caju", description: "Pegue dez cajus móveis em apenas 12 segundos.", reward: "+10 🧃" },
+  { id: "rarity", icon: "💎", title: "Mestre das raridades", description: "Identifique a raridade de cinco figurinhas. Dois erros encerram a rodada.", reward: "+7 🧃" },
+  { id: "sequence", icon: "👁️", title: "Sequência secreta", description: "Memorize cinco figurinhas e repita a ordem sem errar.", reward: "+9 🧃" },
+  { id: "order", icon: "🔢", title: "Ordem relâmpago", description: "Toque em oito figurinhas, do menor número ao maior, em 14 segundos.", reward: "+11 🧃" }
 ];
 const state = { owned: {}, juice: 0, lastOpened: null, packs: 0, activities: {}, activityDate: null };
 let currentFilter = "all", currentRarity = "all", registerMode = false, dailyAvailable = false, gameTimer = null, targetTimer = null;
@@ -255,7 +258,32 @@ function startCaju() {
   targetTimer = setInterval(move, 650);
   gameTimer = setInterval(() => { seconds--; status.textContent = `${10 - caught} faltando · ${seconds}s`; if (seconds <= 0) { finished = true; gameLoss(`Você pegou ${caught} de 10 cajus.`, startCaju); } }, 1000);
 }
-function startGame(id) { if (missionDone(id)) return; byId("gameTitle").textContent = missions.find(mission => mission.id === id)?.title || "Minijogo"; openModal("gameModal"); if (id === "memory") startMemory(); if (id === "quiz") startQuiz(); if (id === "caju") startCaju(); }
+function startRarityChallenge() {
+  const challengeCards = [...cards.filter(card => card.rarity !== "secret")].sort(() => Math.random() - .5).slice(0, 5); let round = 0, correct = 0, lives = 2;
+  const showRound = () => {
+    const card = challengeCards[round], correctRarity = rarity(card.rarity), alternatives = [...rarities.filter(item => item.id !== "secret" && item.id !== card.rarity)].sort(() => Math.random() - .5).slice(0, 2), options = [correctRarity, ...alternatives].sort(() => Math.random() - .5);
+    byId("gameContent").innerHTML = `<div class="game-hud"><span>Figurinha ${round + 1}/5</span><span>❤️ ${lives} ${lives === 1 ? "vida" : "vidas"}</span></div><div class="rarity-challenge"><img src="${card.image}" alt="${escapeHtml(card.name)}"><b>#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}</b></div><p class="game-copy">Qual é a raridade desta figurinha?</p><div class="quiz-options">${options.map(option => `<button class="ghost" data-rarity-answer="${option.id}" style="--answer-color:${option.color}">${option.name}</button>`).join("")}</div><div class="game-status">Acertos: ${correct}/5</div>`;
+    byId("gameContent").querySelectorAll("[data-rarity-answer]").forEach(button => button.onclick = () => { if (button.dataset.rarityAnswer === card.rarity) correct++; else lives--; round++; if (!lives) return gameLoss("Você errou duas raridades nesta rodada.", startRarityChallenge); if (round === challengeCards.length) return completeActivity("rarity", correct).catch(error => alert(error.message)); showRound(); });
+  };
+  showRound();
+}
+function startSequence() {
+  const sequence = [...cards.filter(card => card.rarity !== "secret")].sort(() => Math.random() - .5).slice(0, 5); let previewIndex = 0;
+  const showPreview = () => { const card = sequence[previewIndex]; byId("gameContent").innerHTML = `<p class="game-copy">Memorize a ordem. Depois, toque nas cinco figurinhas na mesma sequência.</p><div class="sequence-preview"><span>${previewIndex + 1}/5</span><img src="${card.image}" alt="${escapeHtml(card.name)}"><b>#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}</b></div>`; };
+  const showChoices = () => {
+    let expected = 0; const shuffled = [...sequence].sort(() => Math.random() - .5);
+    byId("gameContent").innerHTML = `<p class="game-copy">Agora repita a ordem sem errar.</p><div class="game-status" id="sequenceStatus">0 / 5 corretas</div><div class="sequence-grid">${shuffled.map(card => `<button type="button" data-sequence-card="${card.id}" aria-label="#${String(card.id).padStart(3, "0")} ${escapeHtml(card.name)}"><img src="${card.image}" alt=""><b>#${String(card.id).padStart(3, "0")}</b></button>`).join("")}</div>`;
+    byId("gameContent").querySelectorAll("[data-sequence-card]").forEach(button => button.onclick = () => { if (Number(button.dataset.sequenceCard) !== sequence[expected].id) return gameLoss("A ordem escolhida não corresponde à sequência mostrada.", startSequence); button.disabled = true; button.classList.add("correct"); expected++; byId("sequenceStatus").textContent = `${expected} / 5 corretas`; if (expected === sequence.length) completeActivity("sequence", expected).catch(error => alert(error.message)); });
+  };
+  showPreview(); gameTimer = setInterval(() => { previewIndex++; if (previewIndex >= sequence.length) { clearInterval(gameTimer); gameTimer = null; showChoices(); } else showPreview(); }, 1050);
+}
+function startOrderChallenge() {
+  const selected = [...cards.filter(card => card.rarity !== "secret")].sort(() => Math.random() - .5).slice(0, 8), ordered = [...selected].sort((a, b) => a.id - b.id), shuffled = [...selected].sort(() => Math.random() - .5); let next = 0, seconds = 14, finished = false;
+  byId("gameContent").innerHTML = `<p class="game-copy">Toque do menor número para o maior. Um toque errado encerra a rodada.</p><div class="game-hud"><span id="orderTime">⏱ 14s</span><span id="orderProgress">0/8 corretas</span></div><div class="order-grid">${shuffled.map(card => `<button type="button" data-order-card="${card.id}" aria-label="Figurinha número ${card.id}"><img src="${card.image}" alt=""><b>#${String(card.id).padStart(3, "0")}</b></button>`).join("")}</div>`;
+  byId("gameContent").querySelectorAll("[data-order-card]").forEach(button => button.onclick = () => { if (finished) return; if (Number(button.dataset.orderCard) !== ordered[next].id) { finished = true; return gameLoss("Você tocou em uma figurinha fora da ordem crescente.", startOrderChallenge); } button.disabled = true; button.classList.add("correct"); next++; byId("orderProgress").textContent = `${next}/8 corretas`; if (next === ordered.length) { finished = true; clearInterval(gameTimer); gameTimer = null; completeActivity("order", next).catch(error => alert(error.message)); } });
+  gameTimer = setInterval(() => { seconds--; const clock = byId("orderTime"); if (clock) clock.textContent = `⏱ ${seconds}s`; if (seconds <= 0 && !finished) { finished = true; gameLoss(`O tempo acabou. Você acertou ${next} de 8.`, startOrderChallenge); } }, 1000);
+}
+function startGame(id) { if (missionDone(id)) return; byId("gameTitle").textContent = missions.find(mission => mission.id === id)?.title || "Minijogo"; openModal("gameModal"); if (id === "memory") startMemory(); if (id === "quiz") startQuiz(); if (id === "caju") startCaju(); if (id === "rarity") startRarityChallenge(); if (id === "sequence") startSequence(); if (id === "order") startOrderChallenge(); }
 
 async function loadProfile(user) {
   currentUser = user;
