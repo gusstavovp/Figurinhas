@@ -129,9 +129,17 @@ const ownedCards = () => cards.filter(card => (state.owned[card.id] || 0) > 0);
 const optionForCard = (card, withCount = false) => `<option value="${card.id}">#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}${withCount ? ` (${state.owned[card.id]}x)` : ""}</option>`;
 function renderOwnedOptions() {
   const owned = ownedCards();
-  byId("postCard").innerHTML = owned.length ? owned.map(card => optionForCard(card)).join("") : '<option value="">Abra um pacote primeiro</option>';
+  if (byId("postCard").value && !state.owned[byId("postCard").value]) byId("postCard").value = "";
+  updatePostPickerTrigger();
   if (byId("offeredCard").value && !state.owned[byId("offeredCard").value]) byId("offeredCard").value = "";
   updateTradePickerTrigger("offered");
+}
+function updatePostPickerTrigger() {
+  const input = byId("postCard"), button = byId("postPickerButton"), card = cards.find(item => item.id === Number(input.value)), available = ownedCards().length > 0;
+  button.disabled = !available; button.classList.remove("selected");
+  if (!available) { button.textContent = "Abra um pacote primeiro"; return; }
+  if (!card || !state.owned[card.id]) { input.value = ""; button.textContent = "Escolher figurinha"; return; }
+  const r = rarity(card.rarity); button.classList.add("selected"); button.style.setProperty("--rarity", r.color); button.innerHTML = `<img src="${card.image}" alt=""><span><b>#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}</b><small>${r.name} · Você tem ${state.owned[card.id]}x</small></span>`;
 }
 function tradePickerMeta(type, card) {
   const counterpartCount = type === "offered" ? (friendOwned[card.id] || 0) : (state.owned[card.id] || 0);
@@ -140,19 +148,19 @@ function tradePickerMeta(type, card) {
 }
 function updateTradePickerTrigger(type) {
   const offered = type === "offered", input = byId(offered ? "offeredCard" : "requestedCard"), button = byId(offered ? "offeredPickerButton" : "requestedPickerButton"), friendSelected = Boolean(byId("tradeFriend").value), source = offered ? state.owned : friendOwned, available = cards.some(card => (source[card.id] || 0) > 0), card = cards.find(item => item.id === Number(input.value));
-  button.disabled = !friendSelected || !available;
+  button.disabled = !friendSelected || !available; button.classList.remove("selected");
   if (!friendSelected) { button.textContent = "Escolha um amigo primeiro"; return; }
   if (!available) { button.textContent = offered ? "Você ainda não tem figurinhas" : "Seu amigo ainda não tem figurinhas"; return; }
   if (!card || !(source[card.id] > 0)) { input.value = ""; button.textContent = offered ? "Escolha a sua figurinha" : "Escolha a figurinha do amigo"; return; }
-  const r = rarity(card.rarity); button.style.setProperty("--rarity", r.color); button.innerHTML = `<img src="${card.image}" alt=""><span><b>#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}</b><small>${r.name} · ${tradePickerMeta(type, card)}</small></span>`;
+  const r = rarity(card.rarity); button.classList.add("selected"); button.style.setProperty("--rarity", r.color); button.innerHTML = `<img src="${card.image}" alt=""><span><b>#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}</b><small>${r.name} · ${tradePickerMeta(type, card)}</small></span>`;
 }
-function openTradePicker(type) {
-  const offered = type === "offered", source = offered ? state.owned : friendOwned, available = cards.filter(card => (source[card.id] || 0) > 0);
-  if (!byId("tradeFriend").value || !available.length) return;
-  byId("tradePickerTitle").textContent = offered ? "Qual figurinha você oferece?" : "Qual figurinha você quer receber?";
-  byId("tradePickerHelp").textContent = offered ? "Veja se seu amigo já possui cada opção antes de escolher." : "As opções abaixo pertencem ao seu amigo. Destacamos as que ainda faltam no seu álbum.";
-  byId("tradePickerGrid").innerHTML = available.map(card => { const r = rarity(card.rarity), counterpartCount = offered ? (friendOwned[card.id] || 0) : (state.owned[card.id] || 0), status = tradePickerMeta(type, card); return `<button class="trade-picker-option" type="button" data-pick-card="${card.id}" style="--rarity:${r.color}" aria-label="#${String(card.id).padStart(3, "0")} ${escapeHtml(card.name)}, ${r.name}, ${status}"><img src="${card.image}" alt=""><span><b>#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}</b><small>${r.name} · ${source[card.id]}x</small><span class="ownership-tag ${counterpartCount ? "" : "missing"}">${status}</span></span></button>`; }).join("");
-  byId("tradePickerGrid").querySelectorAll("[data-pick-card]").forEach(button => button.onclick = () => { byId(offered ? "offeredCard" : "requestedCard").value = button.dataset.pickCard; updateTradePickerTrigger(type); closeModal("tradePickerModal"); });
+function openStickerPicker(type) {
+  const post = type === "post", offered = type === "offered", source = post || offered ? state.owned : friendOwned, available = cards.filter(card => (source[card.id] || 0) > 0);
+  if ((!post && !byId("tradeFriend").value) || !available.length) return;
+  byId("tradePickerTitle").textContent = post ? "Qual figurinha você quer publicar?" : offered ? "Qual figurinha você oferece?" : "Qual figurinha você quer receber?";
+  byId("tradePickerHelp").textContent = post ? "Escolha uma figurinha da sua coleção para mostrar no Feed." : offered ? "Veja se seu amigo já possui cada opção antes de escolher." : "As opções abaixo pertencem ao seu amigo. Destacamos as que ainda faltam no seu álbum.";
+  byId("tradePickerGrid").innerHTML = available.map(card => { const r = rarity(card.rarity), counterpartCount = post ? state.owned[card.id] : offered ? (friendOwned[card.id] || 0) : (state.owned[card.id] || 0), status = post ? `Você tem ${state.owned[card.id]}x` : tradePickerMeta(type, card); return `<button class="trade-picker-option" type="button" data-pick-card="${card.id}" style="--rarity:${r.color}" aria-label="#${String(card.id).padStart(3, "0")} ${escapeHtml(card.name)}, ${r.name}, ${status}"><img src="${card.image}" alt=""><span><b>#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}</b><small>${r.name} · ${source[card.id]}x</small><span class="ownership-tag ${counterpartCount ? "" : "missing"}">${status}</span></span></button>`; }).join("");
+  byId("tradePickerGrid").querySelectorAll("[data-pick-card]").forEach(button => button.onclick = () => { byId(post ? "postCard" : offered ? "offeredCard" : "requestedCard").value = button.dataset.pickCard; if (post) updatePostPickerTrigger(); else updateTradePickerTrigger(type); closeModal("tradePickerModal"); });
   openModal("tradePickerModal");
 }
 function renderSocialProfile() {
@@ -281,7 +289,7 @@ byId("rarityFilter").onchange = event => { currentRarity = event.target.value; r
 document.querySelectorAll("[data-close]").forEach(button => button.onclick = () => closeModal(button.dataset.close)); document.querySelectorAll(".modal").forEach(modal => modal.onclick = event => { if (event.target === modal) closeModal(modal.id); }); document.addEventListener("keydown", event => { if (event.key === "Escape") document.querySelectorAll(".modal.open").forEach(modal => closeModal(modal.id)); });
 byId("postForm").addEventListener("submit", async event => { event.preventDefault(); const cardId = byId("postCard").value; if (!cardId) return; const button = event.submitter; button.disabled = true; try { await publishSticker(cardId, byId("postCaption").value); byId("postCaption").value = ""; } catch (error) { alert(error.message); } finally { button.disabled = false; } });
 byId("friendForm").addEventListener("submit", async event => { event.preventDefault(); const handle = byId("friendHandle").value.trim().replace(/^@/, "").toLowerCase(); if (!handle) return; const button = event.submitter; button.disabled = true; const { error } = await supabase.rpc("send_friend_request", { p_handle: handle }); button.disabled = false; if (error) return alert(error.message); byId("friendHandle").value = ""; await refreshSocial(); });
-byId("offeredPickerButton").onclick = () => openTradePicker("offered"); byId("requestedPickerButton").onclick = () => openTradePicker("requested");
+byId("postPickerButton").onclick = () => openStickerPicker("post"); byId("offeredPickerButton").onclick = () => openStickerPicker("offered"); byId("requestedPickerButton").onclick = () => openStickerPicker("requested");
 byId("tradeFriend").addEventListener("change", async event => { const friendId = event.target.value; friendOwned = {}; byId("offeredCard").value = ""; byId("requestedCard").value = ""; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); if (!friendId) return; byId("offeredPickerButton").disabled = true; byId("requestedPickerButton").disabled = true; byId("offeredPickerButton").textContent = "Carregando coleção…"; byId("requestedPickerButton").textContent = "Carregando coleção…"; const { data, error } = await supabase.from("album_progress").select("owned").eq("user_id", friendId).single(); if (error) { event.target.value = ""; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); return alert(error.message); } friendOwned = data.owned || {}; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); });
 byId("tradeForm").addEventListener("submit", async event => { event.preventDefault(); const friend = byId("tradeFriend").value, offered = byId("offeredCard").value, requested = byId("requestedCard").value; if (!friend || !offered || !requested) return alert("Escolha o amigo e as duas figurinhas."); const button = event.submitter; button.disabled = true; const { error } = await supabase.rpc("propose_sticker_trade", { p_friend: friend, p_offered: Number(offered), p_requested: Number(requested) }); button.disabled = false; if (error) return alert(error.message); await refreshSocial(); });
 byId("detailPost").onclick = async () => { if (!currentDetailCard) return; byId("detailPost").disabled = true; try { await publishSticker(currentDetailCard.id); closeModal("detailModal"); byId("social").scrollIntoView({ behavior: "smooth" }); } catch (error) { alert(error.message); } finally { byId("detailPost").disabled = false; } };
