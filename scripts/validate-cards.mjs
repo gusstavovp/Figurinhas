@@ -18,6 +18,6 @@ for (let id = 1; id <= names.length; id++) {
   const rarity = ["secret", "legendary", "mythic", "epic", "rare", "uncommon"].find(key => sets[key].has(id)) || "common";
   counts[rarity]++;
 }
-const expected = { common: 50, uncommon: 27, rare: 15, epic: 9, mythic: 4, legendary: 2, secret: 3 };
+const expected = { common: 35, uncommon: 26, rare: 21, epic: 14, mythic: 7, legendary: 4, secret: 3 };
 if (JSON.stringify(counts) !== JSON.stringify(expected)) throw new Error(`Distribuição incorreta: ${JSON.stringify(counts)}`);
 console.log(JSON.stringify({ total: names.length, rarities: counts }));

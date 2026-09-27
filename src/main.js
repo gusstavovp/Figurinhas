@@ -7,12 +7,12 @@ const supabase = configured ? createClient(supabaseUrl, supabaseKey) : null;
 const TOTAL_CARDS = 110;
 
 const rarities = [
-  { id: "common", name: "Comum", color: "#9aa0b6", count: 50, packChance: 65, size: "1–2", guarantee: "1 comum ou melhor" },
-  { id: "uncommon", name: "Incomum", color: "#5fe0a1", count: 27, packChance: 20, size: "3", guarantee: "1 incomum ou melhor" },
-  { id: "rare", name: "Rara", color: "#53b8ff", count: 15, packChance: 8, size: "4–5", guarantee: "1 rara ou melhor" },
-  { id: "epic", name: "Épica", color: "#b277ff", count: 9, packChance: 4, size: "6", guarantee: "1 épica ou melhor" },
-  { id: "mythic", name: "Mítica", color: "#ff6eb5", count: 4, packChance: 2, size: "7", guarantee: "1 mítica ou melhor" },
-  { id: "legendary", name: "Lendária", color: "#ffd75f", count: 2, packChance: .8, size: "10", guarantee: "1 lendária exclusiva" },
+  { id: "common", name: "Comum", color: "#9aa0b6", count: 35, packChance: 65, size: "1–2", guarantee: "1 comum ou melhor" },
+  { id: "uncommon", name: "Incomum", color: "#5fe0a1", count: 26, packChance: 20, size: "3", guarantee: "1 incomum ou melhor" },
+  { id: "rare", name: "Rara", color: "#53b8ff", count: 21, packChance: 8, size: "4–5", guarantee: "1 rara ou melhor" },
+  { id: "epic", name: "Épica", color: "#b277ff", count: 14, packChance: 4, size: "6", guarantee: "1 épica ou melhor" },
+  { id: "mythic", name: "Mítica", color: "#ff6eb5", count: 7, packChance: 2, size: "7", guarantee: "1 mítica ou melhor" },
+  { id: "legendary", name: "Lendária", color: "#ffd75f", count: 4, packChance: .8, size: "10", guarantee: "1 lendária exclusiva" },
   { id: "secret", name: "Secreta", color: "#ff775f", count: 3, packChance: .2, size: "10", guarantee: "1 lendária + 1 secreta" }
 ];
 
@@ -41,13 +41,22 @@ const cardNames = [
   "Pedro Víctor Trox", "Pedro Víctor Mamutinho", "Pedro Víctor dedo enroscado", "Pedro Víctor Fantominho", "Pedro Víctor"
 ];
 
-const uncommonIds = new Set([7, 9, 16, 25, 28, 31, 32, 33, 34, 36, 37, 39, 40, 41, 42, 43, 47, 48, 53, 55, 58, 62, 63, 64, 70, 75, 76]);
-const rareIds = new Set([10, 20, 21, 22, 23, 27, 49, 54, 60, 61, 69, 71, 72, 73, 74]);
-const epicIds = new Set([1, 11, 17, 18, 19, 24, 26, 38, 95]);
-const mythicIds = new Set([13, 67, 96, 97]);
-const legendaryIds = new Set([4, 102]);
+const uncommonIds = new Set([7, 9, 16, 25, 28, 31, 32, 33, 34, 36, 37, 39, 40, 42, 47, 55, 58, 66, 68, 75, 77, 78, 79, 80, 81, 83]);
+const rareIds = new Set([10, 20, 21, 22, 23, 41, 43, 48, 53, 62, 63, 64, 70, 71, 72, 73, 74, 76, 86, 87, 94]);
+const epicIds = new Set([1, 11, 17, 18, 19, 24, 26, 27, 49, 60, 61, 84, 85, 88]);
+const mythicIds = new Set([13, 38, 54, 69, 95, 96, 97]);
+const legendaryIds = new Set([4, 67, 102, 109]);
 const secretIds = new Set([5, 12, 110]);
 const rarityFor = id => secretIds.has(id) ? "secret" : legendaryIds.has(id) ? "legendary" : mythicIds.has(id) ? "mythic" : epicIds.has(id) ? "epic" : rareIds.has(id) ? "rare" : uncommonIds.has(id) ? "uncommon" : "common";
+const packThemes = [
+  { id: "animatronics", name: "Animatronics", icon: "🤖", color: "#ff775f", description: "Freddy, Chica, Foxy, Bonnie e companhia.", cardIds: [8,9,10,11,12,13,14,69] },
+  { id: "food", name: "Comidas & bebidas", icon: "🧃", color: "#ffd66b", description: "Suco de Caju, arroz, feijão e outras delícias.", cardIds: [4,5,6,7,35,55,65,66,68,103,104] },
+  { id: "heroes", name: "Heróis & vilões", icon: "🦸", color: "#53b8ff", description: "Heróis, vilões e uniformes lendários.", cardIds: [17,18,19,20,21,22,23,24,53] },
+  { id: "games", name: "Anime & games", icon: "🎮", color: "#b277ff", description: "Anime, jogos e personagens de outros universos.", cardIds: [26,27,38,39,45,48,54,60,61,62,63,64,84,85,86,87,88,95] },
+  { id: "folklore", name: "Folclore & magia", icon: "🪄", color: "#5fe0a1", description: "Lendas brasileiras, magia e criaturas misteriosas.", cardIds: [49,67,71,72,73,74,75,76,102,109] },
+  { id: "routine", name: "Profissões & rotina", icon: "🛠️", color: "#54ddff", description: "Trabalhos, estudos, veículos e vida cotidiana.", cardIds: [15,25,30,31,34,43,47,52,70,82,83,89,90,91] },
+  { id: "special", name: "Estilos & especiais", icon: "✨", color: "#ff6eb5", description: "Amigos, emoções, estilos e versões inesperadas.", cardIds: [1,2,3,16,28,29,32,33,36,37,40,41,42,44,46,50,51,56,57,58,59,77,78,79,80,81,92,93,94,96,97,98,99,100,101,105,106,107,108,110] }
+];
 const icons = ["🐺", "🎨", "6️⃣", "🧃", "🥤", "🍛", "🍚", "🐻", "🐤", "🦊", "🐰", "🎭", "🤖", "🩰", "📐", "🌈", "🦇", "⚔️", "🦸", "⚡", "🃏", "♦️", "🎲", "💚", "🌙", "🎣", "🚗", "🤝", "😎", "🍳", "👮", "🦜", "🩴", "⌚", "🥩", "🎤", "🐴", "🟣", "🎮", "🎬", "💘", "🤡", "⚽", "🔊", "🕹️", "🍔", "🏋️", "⛏️", "🧙", "🧒", "👸", "👴", "💗", "🔥", "🧽", "👨", "✨", "🌵", "💰", "🌊", "🐉", "🏰", "👦", "🧪", "🦑", "⭐", "⚡", "🍓", "🐇", "🏍️", "👣", "🐊", "🧜", "🧢", "🔥", "🌳", "💇", "😎", "🖤", "🎨", "🧔", "🚌", "🚍", "🎙️", "👁️", "🍥", "🌸", "🥷", "📚", "🔧", "💻", "🕴️", "💎", "👶", "⛓️", "🌑", "☀️", "😍", "😡", "😁", "🤤", "🪄", "🥪", "🐕", "💞", "🤪", "🦣", "☝️", "👻", "❓"];
 const cards = cardNames.map((name, index) => ({
   id: index + 1,
@@ -83,6 +92,7 @@ function stats() {
 function renderStats() {
   const s = stats();
   byId("ownedCount").textContent = s.unique; byId("percentStat").textContent = `${s.percent}%`; byId("dupeStat").textContent = s.dupes; byId("juiceBalance").textContent = state.juice; byId("buyMystery").disabled = state.juice < 30;
+  document.querySelectorAll("[data-buy-theme]").forEach(button => button.disabled = state.juice < 40);
   document.querySelector(".progress-fill").style.width = `${s.percent}%`; document.querySelector(".progress-track").setAttribute("aria-valuenow", s.unique);
   byId("collectionCopy").textContent = s.unique === TOTAL_CARDS ? "Coleção completa. Você conquistou todas as versões!" : `${TOTAL_CARDS - s.unique} descobertas faltam — as secretas só aparecem depois de encontradas.`;
 }
@@ -94,7 +104,7 @@ function renderAlbum() {
 }
 function renderOdds() {
   const rows = (metric, max, formatter) => rarities.map(r => `<div class="prob-row"><span class="rarity-key"><i class="dot" style="--c:${r.color}"></i>${r.name}</span><span class="bar"><i style="--c:${r.color};--w:${(r[metric] / max) * 100}%"></i></span><b>${formatter(r[metric])}</b></div>`).join("");
-  byId("packOdds").innerHTML = rows("packChance", 65, value => `${value}%`); byId("stickerOdds").innerHTML = rows("count", 50, String);
+  byId("packOdds").innerHTML = rows("packChance", 65, value => `${value}%`); byId("stickerOdds").innerHTML = rows("count", 35, String);
   byId("packRules").innerHTML = rarities.map(r => `<tr><td><span class="rarity-key"><i class="dot" style="--c:${r.color}"></i>${r.name}</span></td><td>${r.size} figurinhas</td><td>${r.guarantee}</td><td><strong>+${juiceRewards[r.id]} 🧃</strong></td></tr>`).join("");
   byId("rarityFilter").innerHTML = '<option value="all">Toda raridade</option>' + rarities.filter(r => r.id !== "secret" || cards.some(card => card.rarity === "secret" && state.owned[card.id])).map(r => `<option value="${r.id}">${r.name}</option>`).join("");
 }
@@ -115,13 +125,18 @@ function showPack(data, source) {
   const payload = typeof data === "string" ? JSON.parse(data) : data; Object.assign(state, payload.state); dailyAvailable = payload.daily_available;
   const tier = rarities.findIndex(r => r.id === payload.pack_tier), entries = payload.entries.map(entry => ({ card: cards.find(card => card.id === entry.id), isNew: entry.is_new })).filter(entry => entry.card), newCount = entries.filter(entry => entry.isNew).length;
   const revealModal = byId("revealModal"); revealModal.className = `modal tier-${payload.pack_tier}`; revealModal.style.setProperty("--pack-color", rarities[tier].color);
-  byId("revealTier").textContent = `${source === "mystery" ? "Pacote misterioso revelou: " : ""}Pacote ${payload.pack_rarity}`; byId("revealTier").style.color = rarities[tier].color; byId("revealSummary").textContent = `${newCount ? `${newCount} ${newCount === 1 ? "nova figurinha" : "novas figurinhas"}` : "Somente repetidas"}${payload.reward ? ` · +${payload.reward} 🧃` : ""}`; byId("revealGrid").innerHTML = "";
+  byId("revealTier").textContent = source === "theme" ? `Pacote temático · ${payload.pack_rarity}` : `${source === "mystery" ? "Pacote misterioso revelou: " : ""}Pacote ${payload.pack_rarity}`; byId("revealTier").style.color = rarities[tier].color; byId("revealSummary").textContent = `${newCount ? `${newCount} ${newCount === 1 ? "nova figurinha" : "novas figurinhas"}` : "Somente repetidas"}${payload.reward ? ` · +${payload.reward} 🧃` : ""}`; byId("revealGrid").innerHTML = "";
   entries.forEach(({ card, isNew }, index) => { const r = rarity(card.rarity), element = document.createElement("div"); element.className = `reveal-card rarity-${card.rarity}${isNew ? " is-new" : ""}`; element.style.cssText = `--rarity:${r.color};animation-delay:${index * .08}s`; element.innerHTML = `<img class="reveal-image" src="${card.image}" alt="${card.name}"><div class="reveal-info"><b>${card.name}</b><small>${r.name}</small>${isNew ? '<div class="new-tag">NOVA</div>' : ""}</div>`; byId("revealGrid").appendChild(element); });
   openModal("revealModal"); if (tier >= 4 || newCount >= 3) burst(); renderOdds(); renderAll(); return payload;
 }
 async function openPack(source) { const panel = document.querySelector(".pack-panel"); if (source === "daily") panel?.classList.add("opening"); try { const { data, error } = await supabase.rpc("open_album_pack", { p_source: source }); if (error) throw error; return showPack(data, source); } finally { panel?.classList.remove("opening"); } }
 async function openDaily() { if (!dailyAvailable) return; byId("openPack").disabled = true; try { return await openPack("daily"); } catch (error) { alert(error.message); updateDaily(); } }
 async function buyMystery() { if (state.juice < 30) return; byId("buyMystery").disabled = true; try { return await openPack("mystery"); } catch (error) { alert(error.message); renderStats(); } }
+async function buyTheme(themeId) { if (state.juice < 40) return; const button = document.querySelector(`[data-buy-theme="${themeId}"]`); button.disabled = true; try { const { data, error } = await supabase.rpc("open_themed_album_pack", { p_theme: themeId }); if (error) throw error; return showPack(data, "theme"); } catch (error) { alert(error.message); renderStats(); } }
+function renderThemePacks() {
+  byId("themePackGrid").innerHTML = packThemes.map(theme => { const previews = theme.cardIds.filter(id => rarityFor(id) !== "secret").slice(0, 3); return `<article class="theme-pack" style="--theme:${theme.color}"><div class="theme-pack-head"><span>${theme.icon}</span><div><h3>Pedro Víctor ${theme.name}</h3><small>${theme.cardIds.length} figurinhas possíveis</small></div></div><div class="theme-preview">${previews.map(id => `<img src="/stickers/cards/${String(id).padStart(3, "0")}.jpg" alt="" loading="lazy">`).join("")}</div><p>${theme.description}</p><button class="primary" type="button" data-buy-theme="${theme.id}">Abrir pacote temático<span class="cost">40 🧃 · 5 figurinhas</span></button></article>`; }).join("");
+  document.querySelectorAll("[data-buy-theme]").forEach(button => button.onclick = () => buyTheme(button.dataset.buyTheme));
+}
 async function completeActivity(id, score) {
   const { data, error } = await supabase.rpc("complete_daily_activity", { p_activity: id, p_score: score }); if (error) throw error;
   state.juice = data.coins; state.activities = data.activities || {}; state.activityDate = data.activity_date; renderStats(); renderMissions(); burst();
@@ -339,4 +354,4 @@ byId("tradeForm").addEventListener("submit", async event => { event.preventDefau
 byId("detailPost").onclick = async () => { if (!currentDetailCard) return; byId("detailPost").disabled = true; try { await publishSticker(currentDetailCard.id); closeModal("detailModal"); setActiveView("social"); } catch (error) { alert(error.message); } finally { byId("detailPost").disabled = false; } };
 byId("detailFeature").onclick = async () => { if (!currentDetailCard) return; byId("detailFeature").disabled = true; try { await featureSticker(currentDetailCard.id); closeModal("detailModal"); } catch (error) { alert(error.message); } finally { byId("detailFeature").disabled = false; } };
 byId("authForm").addEventListener("submit", handleAuth); byId("authToggle").onclick = toggleAuth; byId("logoutButton").onclick = async event => { event.preventDefault(); await supabase?.auth.signOut(); };
-setActiveView(location.hash.slice(1), false); renderOdds(); renderAll(); initialize();
+setActiveView(location.hash.slice(1), false); renderThemePacks(); renderOdds(); renderAll(); initialize();
