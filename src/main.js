@@ -67,7 +67,7 @@ const missions = [
 ];
 const state = { owned: {}, juice: 0, lastOpened: null, packs: 0, activities: {}, activityDate: null };
 let currentFilter = "all", currentRarity = "all", registerMode = false, dailyAvailable = false, gameTimer = null, targetTimer = null;
-let currentUser = null, socialProfile = null, friends = [], friendships = [], trades = [], currentDetailCard = null;
+let currentUser = null, socialProfile = null, friends = [], friendships = [], trades = [], currentDetailCard = null, friendOwned = {};
 const byId = id => document.getElementById(id);
 const rarity = id => rarities.find(r => r.id === id);
 const todayKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Fortaleza" }).format(new Date());
@@ -130,7 +130,30 @@ const optionForCard = (card, withCount = false) => `<option value="${card.id}">#
 function renderOwnedOptions() {
   const owned = ownedCards();
   byId("postCard").innerHTML = owned.length ? owned.map(card => optionForCard(card)).join("") : '<option value="">Abra um pacote primeiro</option>';
-  byId("offeredCard").innerHTML = owned.length ? owned.map(card => optionForCard(card, true)).join("") : '<option value="">Sem figurinhas</option>';
+  if (byId("offeredCard").value && !state.owned[byId("offeredCard").value]) byId("offeredCard").value = "";
+  updateTradePickerTrigger("offered");
+}
+function tradePickerMeta(type, card) {
+  const counterpartCount = type === "offered" ? (friendOwned[card.id] || 0) : (state.owned[card.id] || 0);
+  if (type === "offered") return counterpartCount ? `Amigo tem ${counterpartCount}x` : "Amigo não tem";
+  return counterpartCount ? `Você tem ${counterpartCount}x` : "Você não tem";
+}
+function updateTradePickerTrigger(type) {
+  const offered = type === "offered", input = byId(offered ? "offeredCard" : "requestedCard"), button = byId(offered ? "offeredPickerButton" : "requestedPickerButton"), friendSelected = Boolean(byId("tradeFriend").value), source = offered ? state.owned : friendOwned, available = cards.some(card => (source[card.id] || 0) > 0), card = cards.find(item => item.id === Number(input.value));
+  button.disabled = !friendSelected || !available;
+  if (!friendSelected) { button.textContent = "Escolha um amigo primeiro"; return; }
+  if (!available) { button.textContent = offered ? "Você ainda não tem figurinhas" : "Seu amigo ainda não tem figurinhas"; return; }
+  if (!card || !(source[card.id] > 0)) { input.value = ""; button.textContent = offered ? "Escolha a sua figurinha" : "Escolha a figurinha do amigo"; return; }
+  const r = rarity(card.rarity); button.style.setProperty("--rarity", r.color); button.innerHTML = `<img src="${card.image}" alt=""><span><b>#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}</b><small>${r.name} · ${tradePickerMeta(type, card)}</small></span>`;
+}
+function openTradePicker(type) {
+  const offered = type === "offered", source = offered ? state.owned : friendOwned, available = cards.filter(card => (source[card.id] || 0) > 0);
+  if (!byId("tradeFriend").value || !available.length) return;
+  byId("tradePickerTitle").textContent = offered ? "Qual figurinha você oferece?" : "Qual figurinha você quer receber?";
+  byId("tradePickerHelp").textContent = offered ? "Veja se seu amigo já possui cada opção antes de escolher." : "As opções abaixo pertencem ao seu amigo. Destacamos as que ainda faltam no seu álbum.";
+  byId("tradePickerGrid").innerHTML = available.map(card => { const r = rarity(card.rarity), counterpartCount = offered ? (friendOwned[card.id] || 0) : (state.owned[card.id] || 0), status = tradePickerMeta(type, card); return `<button class="trade-picker-option" type="button" data-pick-card="${card.id}" style="--rarity:${r.color}" aria-label="#${String(card.id).padStart(3, "0")} ${escapeHtml(card.name)}, ${r.name}, ${status}"><img src="${card.image}" alt=""><span><b>#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}</b><small>${r.name} · ${source[card.id]}x</small><span class="ownership-tag ${counterpartCount ? "" : "missing"}">${status}</span></span></button>`; }).join("");
+  byId("tradePickerGrid").querySelectorAll("[data-pick-card]").forEach(button => button.onclick = () => { byId(offered ? "offeredCard" : "requestedCard").value = button.dataset.pickCard; updateTradePickerTrigger(type); closeModal("tradePickerModal"); });
+  openModal("tradePickerModal");
 }
 function renderSocialProfile() {
   if (!socialProfile) return;
@@ -143,6 +166,7 @@ function renderSocialProfile() {
 }
 function friendFrom(row) { return row.requester_id === currentUser.id ? row.addressee : row.requester; }
 function renderFriends() {
+  const selectedFriend = byId("tradeFriend").value;
   const accepted = friendships.filter(row => row.status === "accepted");
   friends = accepted.map(friendFrom).filter(Boolean);
   byId("friendList").innerHTML = friends.length ? friends.map(friend => `<div class="friend-row"><div><b>${escapeHtml(friend.display_name)}</b><small>@${escapeHtml(friend.handle)}</small></div><button class="ghost" data-trade-friend="${friend.user_id}">Trocar</button></div>`).join("") : '<div class="empty-small">Adicione alguém pelo @ para começar.</div>';
@@ -150,6 +174,7 @@ function renderFriends() {
   const outgoing = friendships.filter(row => row.status === "pending" && row.requester_id === currentUser.id);
   byId("requestList").innerHTML = incoming.map(row => `<div class="friend-row"><div><b>${escapeHtml(row.requester.display_name)}</b><small>@${escapeHtml(row.requester.handle)}</small></div><div class="row-actions"><button class="primary" data-friend-response="${row.id}" data-accept="true">Aceitar</button><button class="ghost" data-friend-response="${row.id}" data-accept="false">Recusar</button></div></div>`).join("") + outgoing.map(row => `<div class="friend-row"><div><b>${escapeHtml(row.addressee.display_name)}</b><small>Pedido enviado</small></div></div>`).join("") || '<div class="empty-small">Nenhum pedido pendente.</div>';
   byId("tradeFriend").innerHTML = '<option value="">Escolha um amigo</option>' + friends.map(friend => `<option value="${friend.user_id}">${escapeHtml(friend.display_name)} · @${escapeHtml(friend.handle)}</option>`).join("");
+  if (friends.some(friend => friend.user_id === selectedFriend)) byId("tradeFriend").value = selectedFriend;
   document.querySelectorAll("[data-friend-response]").forEach(button => button.onclick = () => respondFriend(Number(button.dataset.friendResponse), button.dataset.accept === "true"));
   document.querySelectorAll("[data-trade-friend]").forEach(button => button.onclick = () => { byId("tradeFriend").value = button.dataset.tradeFriend; byId("tradeFriend").dispatchEvent(new Event("change")); byId("trades").scrollIntoView({ behavior: "smooth" }); });
 }
@@ -159,7 +184,7 @@ function renderFeed(posts) {
 function tradeParty(trade) { return trade.proposer_id === currentUser.id ? trade.recipient : trade.proposer; }
 function renderTrades() {
   const pending = trades.filter(trade => trade.status === "pending");
-  byId("tradeList").innerHTML = pending.length ? pending.map(trade => { const offered = cards.find(card => card.id === trade.offered_card_id), requested = cards.find(card => card.id === trade.requested_card_id), other = tradeParty(trade), incoming = trade.recipient_id === currentUser.id; return `<div class="trade-row"><img src="${offered.image}" alt="${escapeHtml(offered.name)}"><div><b>${escapeHtml(offered.name)}</b><small>${incoming ? `${escapeHtml(other.display_name)} oferece` : "Você oferece"}</small></div><b>↔</b><div><b>${escapeHtml(requested.name)}</b><small>${incoming ? "Em troca da sua" : `De ${escapeHtml(other.display_name)}`}</small></div><div class="row-actions">${incoming ? `<button class="primary" data-trade-response="${trade.id}" data-accept="true">Aceitar</button><button class="ghost" data-trade-response="${trade.id}" data-accept="false">Recusar</button>` : `<button class="ghost" data-trade-cancel="${trade.id}">Cancelar</button>`}</div></div>`; }).join("") : '<div class="empty-small">Nenhuma troca pendente.</div>';
+  byId("tradeList").innerHTML = pending.length ? pending.map(trade => { const offered = cards.find(card => card.id === trade.offered_card_id), requested = cards.find(card => card.id === trade.requested_card_id), other = tradeParty(trade), incoming = trade.recipient_id === currentUser.id; return `<div class="trade-row"><img src="${offered.image}" alt="${escapeHtml(offered.name)}"><div><b>#${String(offered.id).padStart(3, "0")} · ${escapeHtml(offered.name)}</b><small>${incoming ? `${escapeHtml(other.display_name)} oferece` : "Você oferece"} · ${rarity(offered.rarity).name}</small></div><b>↔</b><img src="${requested.image}" alt="${escapeHtml(requested.name)}"><div><b>#${String(requested.id).padStart(3, "0")} · ${escapeHtml(requested.name)}</b><small>${incoming ? "Em troca da sua" : `De ${escapeHtml(other.display_name)}`} · ${rarity(requested.rarity).name}</small></div><div class="row-actions">${incoming ? `<button class="primary" data-trade-response="${trade.id}" data-accept="true">Aceitar</button><button class="ghost" data-trade-response="${trade.id}" data-accept="false">Recusar</button>` : `<button class="ghost" data-trade-cancel="${trade.id}">Cancelar</button>`}</div></div>`; }).join("") : '<div class="empty-small">Nenhuma troca pendente.</div>';
   document.querySelectorAll("[data-trade-response]").forEach(button => button.onclick = () => respondTrade(Number(button.dataset.tradeResponse), button.dataset.accept === "true"));
   document.querySelectorAll("[data-trade-cancel]").forEach(button => button.onclick = () => cancelTrade(Number(button.dataset.tradeCancel)));
 }
@@ -256,7 +281,8 @@ byId("rarityFilter").onchange = event => { currentRarity = event.target.value; r
 document.querySelectorAll("[data-close]").forEach(button => button.onclick = () => closeModal(button.dataset.close)); document.querySelectorAll(".modal").forEach(modal => modal.onclick = event => { if (event.target === modal) closeModal(modal.id); }); document.addEventListener("keydown", event => { if (event.key === "Escape") document.querySelectorAll(".modal.open").forEach(modal => closeModal(modal.id)); });
 byId("postForm").addEventListener("submit", async event => { event.preventDefault(); const cardId = byId("postCard").value; if (!cardId) return; const button = event.submitter; button.disabled = true; try { await publishSticker(cardId, byId("postCaption").value); byId("postCaption").value = ""; } catch (error) { alert(error.message); } finally { button.disabled = false; } });
 byId("friendForm").addEventListener("submit", async event => { event.preventDefault(); const handle = byId("friendHandle").value.trim().replace(/^@/, "").toLowerCase(); if (!handle) return; const button = event.submitter; button.disabled = true; const { error } = await supabase.rpc("send_friend_request", { p_handle: handle }); button.disabled = false; if (error) return alert(error.message); byId("friendHandle").value = ""; await refreshSocial(); });
-byId("tradeFriend").addEventListener("change", async event => { const friendId = event.target.value; if (!friendId) { byId("requestedCard").innerHTML = '<option value="">Escolha o amigo primeiro</option>'; return; } const { data, error } = await supabase.from("album_progress").select("owned").eq("user_id", friendId).single(); if (error) return alert(error.message); const available = cards.filter(card => (data.owned?.[card.id] || 0) > 0); byId("requestedCard").innerHTML = available.length ? available.map(card => `<option value="${card.id}">#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)} (${data.owned[card.id]}x)</option>`).join("") : '<option value="">Este amigo ainda não tem figurinhas</option>'; });
+byId("offeredPickerButton").onclick = () => openTradePicker("offered"); byId("requestedPickerButton").onclick = () => openTradePicker("requested");
+byId("tradeFriend").addEventListener("change", async event => { const friendId = event.target.value; friendOwned = {}; byId("offeredCard").value = ""; byId("requestedCard").value = ""; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); if (!friendId) return; byId("offeredPickerButton").disabled = true; byId("requestedPickerButton").disabled = true; byId("offeredPickerButton").textContent = "Carregando coleção…"; byId("requestedPickerButton").textContent = "Carregando coleção…"; const { data, error } = await supabase.from("album_progress").select("owned").eq("user_id", friendId).single(); if (error) { event.target.value = ""; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); return alert(error.message); } friendOwned = data.owned || {}; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); });
 byId("tradeForm").addEventListener("submit", async event => { event.preventDefault(); const friend = byId("tradeFriend").value, offered = byId("offeredCard").value, requested = byId("requestedCard").value; if (!friend || !offered || !requested) return alert("Escolha o amigo e as duas figurinhas."); const button = event.submitter; button.disabled = true; const { error } = await supabase.rpc("propose_sticker_trade", { p_friend: friend, p_offered: Number(offered), p_requested: Number(requested) }); button.disabled = false; if (error) return alert(error.message); await refreshSocial(); });
 byId("detailPost").onclick = async () => { if (!currentDetailCard) return; byId("detailPost").disabled = true; try { await publishSticker(currentDetailCard.id); closeModal("detailModal"); byId("social").scrollIntoView({ behavior: "smooth" }); } catch (error) { alert(error.message); } finally { byId("detailPost").disabled = false; } };
 byId("detailFeature").onclick = async () => { if (!currentDetailCard) return; byId("detailFeature").disabled = true; try { await featureSticker(currentDetailCard.id); closeModal("detailModal"); } catch (error) { alert(error.message); } finally { byId("detailFeature").disabled = false; } };
