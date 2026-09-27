@@ -67,7 +67,7 @@ const missions = [
 ];
 const state = { owned: {}, juice: 0, lastOpened: null, packs: 0, activities: {}, activityDate: null };
 let currentFilter = "all", currentRarity = "all", registerMode = false, dailyAvailable = false, gameTimer = null, targetTimer = null;
-let currentUser = null, socialProfile = null, friends = [], friendships = [], trades = [], currentDetailCard = null, friendOwned = {};
+let currentUser = null, socialProfile = null, friends = [], friendships = [], trades = [], currentDetailCard = null, friendOwned = {}, postPendingDelete = null;
 const byId = id => document.getElementById(id);
 const rarity = id => rarities.find(r => r.id === id);
 const todayKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Fortaleza" }).format(new Date());
@@ -100,12 +100,12 @@ function renderMissions() {
   const completed = missions.filter(mission => missionDone(mission.id)).length;
   byId("missionSummary").textContent = `${completed} / ${missions.length} concluídas`; byId("missionProgress").style.setProperty("--w", `${(completed / missions.length) * 100}%`);
   byId("missionGrid").innerHTML = missions.map(mission => { const done = missionDone(mission.id), action = mission.id === "daily_pack" ? "Ir para o pacote" : "Jogar agora"; return `<article class="mission-card ${done ? "done" : ""}"><div class="mission-icon">${mission.icon}</div><h3>${mission.title}</h3><p>${mission.description}</p><div class="mission-reward">${mission.reward}</div><button class="${done ? "ghost" : "primary"}" data-mission="${mission.id}" ${done ? "disabled" : ""}>${done ? "✓ Concluída" : action}</button></article>`; }).join("");
-  document.querySelectorAll("[data-mission]").forEach(button => button.onclick = () => { const id = button.dataset.mission; if (id === "daily_pack") byId("openPack").scrollIntoView({ behavior: "smooth", block: "center" }); else startGame(id); });
+  document.querySelectorAll("[data-mission]").forEach(button => button.onclick = () => { const id = button.dataset.mission; if (id === "daily_pack") setActiveView("album"); else startGame(id); });
 }
 function updateDaily() { const button = byId("openPack"); button.disabled = !dailyAvailable; button.textContent = dailyAvailable ? "Abrir pacote grátis" : "Pacote de hoje aberto"; byId("packMessage").textContent = dailyAvailable ? "Um pacote está esperando por você." : "Volte amanhã para uma nova surpresa."; byId("countdown").textContent = dailyAvailable ? "Disponível agora" : "Novo pacote à meia-noite"; }
 function renderAll() { renderStats(); renderAlbum(); updateDaily(); renderMissions(); renderOwnedOptions(); }
 function openModal(id) { byId(id).classList.add("open"); byId(id).querySelector(".close").focus(); document.body.style.overflow = "hidden"; }
-function closeModal(id) { if (id === "gameModal") { if (gameTimer) clearInterval(gameTimer); if (targetTimer) clearInterval(targetTimer); } gameTimer = null; targetTimer = null; byId(id).classList.remove("open"); document.body.style.overflow = ""; }
+function closeModal(id) { if (id === "gameModal") { if (gameTimer) clearInterval(gameTimer); if (targetTimer) clearInterval(targetTimer); } if (id === "deletePostModal") postPendingDelete = null; gameTimer = null; targetTimer = null; byId(id).classList.remove("open"); document.body.style.overflow = ""; }
 function showDetail(card) { currentDetailCard = card; const r = rarity(card.rarity), icon = byId("detailIcon"); icon.className = `detail-icon rarity-${card.rarity}`; icon.style.setProperty("--rarity", r.color); icon.innerHTML = `<img src="${card.image}" alt="${card.name}">`; byId("detailRarity").textContent = `#${String(card.id).padStart(3, "0")} · ${r.name}`; byId("detailRarity").style.color = r.color; byId("detailTitle").textContent = card.name; byId("detailText").textContent = card.description + (state.owned[card.id] > 1 ? ` Você possui ${state.owned[card.id]} cópias.` : ""); openModal("detailModal"); }
 function burst() { const box = byId("confetti"), colors = rarities.map(r => r.color); box.innerHTML = ""; for (let i = 0; i < 42; i++) { const piece = document.createElement("i"); piece.style.cssText = `left:${Math.random() * 100}%;--x:${(Math.random() - .5) * 300}px;--c:${colors[i % colors.length]};animation-delay:${Math.random() * .4}s`; box.appendChild(piece); } setTimeout(() => box.innerHTML = "", 2500); }
 function showPack(data, source) {
@@ -125,6 +125,13 @@ async function completeActivity(id, score) {
   byId("gameContent").innerHTML = `<p class="reward-toast">Missão concluída! +${data.reward} 🧃 Suco de Caju</p><button class="primary" data-close-game style="display:block;margin:22px auto 0">Voltar às missões</button>`; byId("gameContent").querySelector("[data-close-game]").onclick = () => closeModal("gameModal");
 }
 const escapeHtml = value => String(value || "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+function setActiveView(view, updateHash = true) {
+  const validView = ["album", "social", "trades", "missions"].includes(view) ? view : "album";
+  document.querySelectorAll("[data-view-panel]").forEach(panel => panel.classList.toggle("view-hidden", panel.dataset.viewPanel !== validView));
+  document.querySelectorAll("[data-jump]").forEach(button => { const active = button.dataset.jump === validView; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); });
+  if (updateHash) history.replaceState(null, "", `#${validView}`);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
 const ownedCards = () => cards.filter(card => (state.owned[card.id] || 0) > 0);
 const optionForCard = (card, withCount = false) => `<option value="${card.id}">#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}${withCount ? ` (${state.owned[card.id]}x)` : ""}</option>`;
 function renderOwnedOptions() {
@@ -184,10 +191,11 @@ function renderFriends() {
   byId("tradeFriend").innerHTML = '<option value="">Escolha um amigo</option>' + friends.map(friend => `<option value="${friend.user_id}">${escapeHtml(friend.display_name)} · @${escapeHtml(friend.handle)}</option>`).join("");
   if (friends.some(friend => friend.user_id === selectedFriend)) byId("tradeFriend").value = selectedFriend;
   document.querySelectorAll("[data-friend-response]").forEach(button => button.onclick = () => respondFriend(Number(button.dataset.friendResponse), button.dataset.accept === "true"));
-  document.querySelectorAll("[data-trade-friend]").forEach(button => button.onclick = () => { byId("tradeFriend").value = button.dataset.tradeFriend; byId("tradeFriend").dispatchEvent(new Event("change")); byId("trades").scrollIntoView({ behavior: "smooth" }); });
+  document.querySelectorAll("[data-trade-friend]").forEach(button => button.onclick = () => { byId("tradeFriend").value = button.dataset.tradeFriend; byId("tradeFriend").dispatchEvent(new Event("change")); setActiveView("trades"); });
 }
 function renderFeed(posts) {
-  byId("feedList").innerHTML = posts.length ? posts.map(post => { const card = cards.find(item => item.id === post.card_id), r = rarity(card.rarity); return `<article class="feed-post" style="--post-color:${r.color}"><img src="${card.image}" alt="${escapeHtml(card.name)}"><div><div class="post-meta"><b>${escapeHtml(post.author.display_name)}</b> · @${escapeHtml(post.author.handle)} · ${new Date(post.created_at).toLocaleDateString("pt-BR")}</div><p class="post-caption">${escapeHtml(post.caption) || "Compartilhou uma nova favorita."}</p><div class="post-card-name">#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)} · ${r.name}</div></div></article>`; }).join("") : '<div class="empty-small">O feed está vazio. Publique uma figurinha ou adicione amigos.</div>';
+  byId("feedList").innerHTML = posts.length ? posts.map(post => { const card = cards.find(item => item.id === post.card_id), r = rarity(card.rarity), ownPost = post.user_id === currentUser.id; return `<article class="feed-post" style="--post-color:${r.color}"><img src="${card.image}" alt="${escapeHtml(card.name)}"><div><div class="post-head"><div class="post-meta"><b>${escapeHtml(post.author.display_name)}</b> · @${escapeHtml(post.author.handle)} · ${new Date(post.created_at).toLocaleDateString("pt-BR")}</div>${ownPost ? `<button class="post-delete" type="button" data-delete-post="${post.id}" aria-label="Excluir esta publicação">Excluir</button>` : ""}</div><p class="post-caption">${escapeHtml(post.caption) || "Compartilhou uma nova favorita."}</p><div class="post-card-name">#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)} · ${r.name}</div></div></article>`; }).join("") : '<div class="empty-small">O feed está vazio. Publique uma figurinha ou adicione amigos.</div>';
+  document.querySelectorAll("[data-delete-post]").forEach(button => button.onclick = () => { postPendingDelete = Number(button.dataset.deletePost); openModal("deletePostModal"); });
 }
 function tradeParty(trade) { return trade.proposer_id === currentUser.id ? trade.recipient : trade.proposer; }
 function renderTrades() {
@@ -199,7 +207,7 @@ function renderTrades() {
 async function refreshSocial() {
   const profileQuery = supabase.from("social_profiles").select("user_id,handle,display_name,featured_card").eq("user_id", currentUser.id).single();
   const friendshipQuery = supabase.from("friendships").select("id,requester_id,addressee_id,status,requester:social_profiles!friendships_requester_id_fkey(user_id,handle,display_name,featured_card),addressee:social_profiles!friendships_addressee_id_fkey(user_id,handle,display_name,featured_card)").order("created_at", { ascending: false });
-  const feedQuery = supabase.from("feed_posts").select("id,card_id,caption,created_at,author:social_profiles!feed_posts_user_id_fkey(user_id,handle,display_name)").order("created_at", { ascending: false }).limit(40);
+  const feedQuery = supabase.from("feed_posts").select("id,user_id,card_id,caption,created_at,author:social_profiles!feed_posts_user_id_fkey(user_id,handle,display_name)").order("created_at", { ascending: false }).limit(40);
   const tradeQuery = supabase.from("sticker_trades").select("id,proposer_id,recipient_id,offered_card_id,requested_card_id,status,created_at,proposer:social_profiles!sticker_trades_proposer_id_fkey(user_id,handle,display_name),recipient:social_profiles!sticker_trades_recipient_id_fkey(user_id,handle,display_name)").order("created_at", { ascending: false }).limit(50);
   const [profileResult, friendshipResult, feedResult, tradeResult] = await Promise.all([profileQuery, friendshipQuery, feedQuery, tradeQuery]);
   for (const result of [profileResult, friendshipResult, feedResult, tradeResult]) if (result.error) throw result.error;
@@ -207,6 +215,13 @@ async function refreshSocial() {
   renderSocialProfile(); renderFriends(); renderFeed(feedResult.data || []); renderTrades(); renderOwnedOptions();
 }
 async function publishSticker(cardId, caption = "") { const { error } = await supabase.rpc("publish_sticker", { p_card_id: Number(cardId), p_caption: caption }); if (error) throw error; await refreshSocial(); }
+async function deleteOwnPost() {
+  if (!postPendingDelete || !currentUser) return;
+  const postId = postPendingDelete, button = byId("confirmDeletePost"); button.disabled = true; button.textContent = "Excluindo…";
+  try { const { error } = await supabase.from("feed_posts").delete().eq("id", postId).eq("user_id", currentUser.id); if (error) throw error; closeModal("deletePostModal"); await refreshSocial(); }
+  catch (error) { alert(error.message); }
+  finally { button.disabled = false; button.textContent = "Excluir publicação"; }
+}
 async function featureSticker(cardId) { const { error } = await supabase.rpc("set_featured_sticker", { p_card_id: Number(cardId) }); if (error) throw error; await refreshSocial(); }
 async function respondFriend(id, accept) { const { error } = await supabase.rpc("respond_friend_request", { p_friendship_id: id, p_accept: accept }); if (error) return alert(error.message); await refreshSocial(); }
 async function respondTrade(id, accept) { const { error } = await supabase.rpc("respond_sticker_trade", { p_trade_id: id, p_accept: accept }); if (error) return alert(error.message); await loadProfile(currentUser); }
@@ -283,16 +298,17 @@ async function initialize() {
   }
 }
 
-document.querySelectorAll("[data-jump]").forEach(button => button.onclick = () => { document.querySelectorAll("[data-jump]").forEach(item => item.classList.toggle("active", item === button)); byId(button.dataset.jump).scrollIntoView({ behavior: "smooth" }); });
+document.querySelectorAll("[data-jump]").forEach(button => button.onclick = () => setActiveView(button.dataset.jump));
 document.querySelectorAll(".filter[data-filter]").forEach(button => button.onclick = () => { currentFilter = button.dataset.filter; document.querySelectorAll(".filter[data-filter]").forEach(item => item.classList.toggle("active", item === button)); renderAlbum(); });
 byId("rarityFilter").onchange = event => { currentRarity = event.target.value; renderAlbum(); }; byId("openPack").onclick = openDaily; byId("buyMystery").onclick = buyMystery; byId("showRules").onclick = () => openModal("rulesModal");
 document.querySelectorAll("[data-close]").forEach(button => button.onclick = () => closeModal(button.dataset.close)); document.querySelectorAll(".modal").forEach(modal => modal.onclick = event => { if (event.target === modal) closeModal(modal.id); }); document.addEventListener("keydown", event => { if (event.key === "Escape") document.querySelectorAll(".modal.open").forEach(modal => closeModal(modal.id)); });
 byId("postForm").addEventListener("submit", async event => { event.preventDefault(); const cardId = byId("postCard").value; if (!cardId) return; const button = event.submitter; button.disabled = true; try { await publishSticker(cardId, byId("postCaption").value); byId("postCaption").value = ""; } catch (error) { alert(error.message); } finally { button.disabled = false; } });
 byId("friendForm").addEventListener("submit", async event => { event.preventDefault(); const handle = byId("friendHandle").value.trim().replace(/^@/, "").toLowerCase(); if (!handle) return; const button = event.submitter; button.disabled = true; const { error } = await supabase.rpc("send_friend_request", { p_handle: handle }); button.disabled = false; if (error) return alert(error.message); byId("friendHandle").value = ""; await refreshSocial(); });
 byId("postPickerButton").onclick = () => openStickerPicker("post"); byId("offeredPickerButton").onclick = () => openStickerPicker("offered"); byId("requestedPickerButton").onclick = () => openStickerPicker("requested");
+byId("confirmDeletePost").onclick = deleteOwnPost;
 byId("tradeFriend").addEventListener("change", async event => { const friendId = event.target.value; friendOwned = {}; byId("offeredCard").value = ""; byId("requestedCard").value = ""; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); if (!friendId) return; byId("offeredPickerButton").disabled = true; byId("requestedPickerButton").disabled = true; byId("offeredPickerButton").textContent = "Carregando coleção…"; byId("requestedPickerButton").textContent = "Carregando coleção…"; const { data, error } = await supabase.from("album_progress").select("owned").eq("user_id", friendId).single(); if (error) { event.target.value = ""; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); return alert(error.message); } friendOwned = data.owned || {}; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); });
 byId("tradeForm").addEventListener("submit", async event => { event.preventDefault(); const friend = byId("tradeFriend").value, offered = byId("offeredCard").value, requested = byId("requestedCard").value; if (!friend || !offered || !requested) return alert("Escolha o amigo e as duas figurinhas."); const button = event.submitter; button.disabled = true; const { error } = await supabase.rpc("propose_sticker_trade", { p_friend: friend, p_offered: Number(offered), p_requested: Number(requested) }); button.disabled = false; if (error) return alert(error.message); await refreshSocial(); });
-byId("detailPost").onclick = async () => { if (!currentDetailCard) return; byId("detailPost").disabled = true; try { await publishSticker(currentDetailCard.id); closeModal("detailModal"); byId("social").scrollIntoView({ behavior: "smooth" }); } catch (error) { alert(error.message); } finally { byId("detailPost").disabled = false; } };
+byId("detailPost").onclick = async () => { if (!currentDetailCard) return; byId("detailPost").disabled = true; try { await publishSticker(currentDetailCard.id); closeModal("detailModal"); setActiveView("social"); } catch (error) { alert(error.message); } finally { byId("detailPost").disabled = false; } };
 byId("detailFeature").onclick = async () => { if (!currentDetailCard) return; byId("detailFeature").disabled = true; try { await featureSticker(currentDetailCard.id); closeModal("detailModal"); } catch (error) { alert(error.message); } finally { byId("detailFeature").disabled = false; } };
 byId("authForm").addEventListener("submit", handleAuth); byId("authToggle").onclick = toggleAuth; byId("logoutButton").onclick = async event => { event.preventDefault(); await supabase?.auth.signOut(); };
-renderOdds(); renderAll(); initialize();
+setActiveView(location.hash.slice(1), false); renderOdds(); renderAll(); initialize();
