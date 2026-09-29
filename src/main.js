@@ -87,6 +87,7 @@ const missions = [
 const state = { owned: {}, juice: 0, lastOpened: null, packs: 0, activities: {}, activityDate: null, lastRouletteSpin: null };
 let currentFilter = "all", currentRarity = "all", registerMode = false, dailyAvailable = false, gameTimer = null, targetTimer = null;
 let currentUser = null, socialProfile = null, friends = [], friendships = [], trades = [], currentDetailCard = null, friendOwned = {}, postPendingDelete = null;
+let rankSort = "stickers", communityLoaded = false, viewedUserId = null;
 const byId = id => document.getElementById(id);
 const clickerOrigin = "https://suco-de-caju-clicker.vercel.app";
 const rarity = id => rarities.find(r => r.id === id);
@@ -189,10 +190,11 @@ async function completeActivity(id, score) {
 }
 const escapeHtml = value => String(value || "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 function setActiveView(view, updateHash = true) {
-  const validView = ["album", "social", "trades", "missions"].includes(view) ? view : "album";
+  const validView = ["album", "community", "social", "trades", "missions"].includes(view) ? view : "album";
   document.querySelectorAll("[data-view-panel]").forEach(panel => panel.classList.toggle("view-hidden", panel.dataset.viewPanel !== validView));
   document.querySelectorAll("[data-jump]").forEach(button => { const active = button.dataset.jump === validView; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); });
   if (updateHash) history.replaceState(null, "", `#${validView}`);
+  if (validView === "community" && currentUser) loadLeaderboard().catch(showCommunityError);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 const ownedCards = () => cards.filter(card => (state.owned[card.id] || 0) > 0);
@@ -237,11 +239,95 @@ function renderSocialProfile() {
   if (!socialProfile) return;
   byId("socialName").textContent = socialProfile.display_name;
   byId("socialHandle").textContent = `@${socialProfile.handle}`;
-  if (document.activeElement !== byId("profileHandle")) byId("profileHandle").value = socialProfile.handle;
   const featured = cards.find(card => card.id === socialProfile.featured_card);
   byId("featuredImage").src = featured?.image || ownedCards()[0]?.image || cards[0].image;
   byId("featuredImage").style.opacity = featured ? "1" : ".35";
   byId("featuredName").textContent = featured ? featured.name : "Escolha uma figurinha em destaque";
+  renderProfileSettings();
+}
+
+function profileImage(profile, owned = null) {
+  const preferred = cards.find(card => card.id === Number(profile?.avatar_card || profile?.featured_card));
+  if (preferred) return preferred.image;
+  if (owned) return cards.find(card => Number(owned[card.id] || 0) > 0)?.image || cards[0].image;
+  return cards[0].image;
+}
+function renderProfileSettings() {
+  if (!socialProfile) return;
+  const active = document.activeElement;
+  if (active !== byId("profileName")) byId("profileName").value = socialProfile.display_name || "";
+  if (active !== byId("profileHandle")) byId("profileHandle").value = socialProfile.handle || "";
+  if (active !== byId("profileBio")) byId("profileBio").value = socialProfile.bio || "";
+  if (active !== byId("profileAccent")) byId("profileAccent").value = socialProfile.accent_color || "#b277ff";
+  byId("profileVisibility").value = socialProfile.collection_visibility || "public";
+  byId("profileRanking").checked = socialProfile.show_in_rankings !== false;
+  const avatarSelect = byId("profileAvatar"), selected = String(socialProfile.avatar_card || "");
+  avatarSelect.innerHTML = '<option value="">Sem avatar</option>' + ownedCards().map(card => optionForCard(card)).join("");
+  avatarSelect.value = selected;
+  const preview = byId("profilePreview"), accent = socialProfile.accent_color || "#b277ff";
+  preview.style.setProperty("--accent", accent);
+  byId("profileAvatarPreview").src = profileImage(socialProfile, state.owned);
+  byId("profilePreviewName").textContent = socialProfile.display_name;
+  byId("profilePreviewHandle").textContent = `@${socialProfile.handle}`;
+  byId("profilePreviewBio").textContent = socialProfile.bio || "Conte algo sobre você.";
+}
+function showCommunityError(error) {
+  const target = byId("rankingList");
+  if (target) target.innerHTML = `<div class="empty-small">Não foi possível carregar a comunidade: ${escapeHtml(error?.message || error)}</div>`;
+}
+function communityUserRow(user, position = null) {
+  const accent = user.accent_color || "#7c5cff", avatar = profileImage(user), open = user.can_view_collection;
+  return `<button class="${position ? "rank-row" : "user-result"}" type="button" data-view-user="${user.user_id}" style="--accent:${accent}">${position ? `<span class="rank-place">${position <= 3 ? ["🥇", "🥈", "🥉"][position - 1] : `#${position}`}</span>` : '<span class="rank-place">⌕</span>'}<img class="profile-avatar" src="${avatar}" alt=""><span><b>${escapeHtml(user.display_name)}</b><small>@${escapeHtml(user.handle)}${user.is_friend ? " · seu amigo" : ""}</small><span class="status-pill ${open ? "open" : "locked"}">${open ? "Coleção visível" : "Coleção protegida"}</span></span><span class="rank-score"><b>${Number(user.sticker_count || 0)}</b><small>${Number(user.completion_percent || 0).toLocaleString("pt-BR")}% completo</small></span></button>`;
+}
+async function loadLeaderboard(force = false) {
+  if (communityLoaded && !force) return;
+  byId("rankingList").innerHTML = '<div class="empty-small">Carregando ranking…</div>';
+  const { data, error } = await supabase.rpc("album_leaderboard", { p_sort: rankSort, p_limit: 50 });
+  if (error) throw error;
+  communityLoaded = true;
+  byId("rankingList").innerHTML = data?.length ? data.map(user => communityUserRow(user, Number(user.rank_position))).join("") : '<div class="empty-small">Ainda não há perfis no ranking.</div>';
+  bindCommunityRows();
+}
+function bindCommunityRows() {
+  document.querySelectorAll("[data-view-user]").forEach(button => button.onclick = () => viewCommunityProfile(button.dataset.viewUser));
+}
+async function searchCommunityUsers(query) {
+  const target = byId("userSearchResults");
+  target.innerHTML = '<div class="empty-small">Pesquisando…</div>';
+  const { data, error } = await supabase.rpc("search_album_users", { p_query: query, p_limit: 24 });
+  if (error) throw error;
+  target.innerHTML = data?.length ? data.map(user => communityUserRow(user)).join("") : '<div class="empty-small">Nenhum usuário encontrado.</div>';
+  bindCommunityRows();
+}
+function renderViewedProfile(profile) {
+  const panel = byId("viewedProfile"), accent = profile.accent_color || "#7c5cff", isMe = profile.user_id === currentUser.id;
+  viewedUserId = profile.user_id;
+  panel.hidden = false; panel.style.setProperty("--accent", accent);
+  const visibilityLabel = { public: "Pública", friends: "Somente amigos", private: "Privada" }[profile.collection_visibility] || "Protegida";
+  const owned = profile.owned || {}, visibleCards = cards.filter(card => Number(owned[card.id] || 0) > 0);
+  panel.innerHTML = `<div class="viewed-head"><img src="${profileImage(profile, owned)}" alt=""><div><h3>${escapeHtml(profile.display_name)}</h3><p>@${escapeHtml(profile.handle)}${profile.bio ? ` · ${escapeHtml(profile.bio)}` : ""}</p><div class="viewed-stats"><span>${Number(profile.sticker_count || 0)} figurinhas únicas</span><span>${Number(profile.completion_percent || 0).toLocaleString("pt-BR")}% concluído</span><span>Privacidade: ${visibilityLabel}</span></div></div><div class="viewed-actions">${isMe ? '<button class="ghost" type="button" data-edit-own-profile>Editar meu perfil</button>' : `<button class="ghost" type="button" data-block-user>${profile.is_blocked_by_me ? "Desbloquear usuário" : "Bloquear usuário"}</button>`}</div></div>${profile.can_view_collection ? `<div class="public-album-grid">${visibleCards.map(card => `<button class="public-sticker" type="button" data-public-card="${card.id}" style="--rarity:${rarity(card.rarity).color}" title="${escapeHtml(card.name)}"><img src="${card.image}" alt="${escapeHtml(card.name)}" loading="lazy"><span>#${String(card.id).padStart(3, "0")}${owned[card.id] > 1 ? ` · ${owned[card.id]}x` : ""}</span></button>`).join("")}</div>` : `<div class="collection-lock">🔒 ${isMe ? "Sua coleção está protegida para outros usuários." : "Este usuário não permitiu que você veja as figurinhas dele."}</div>`}`;
+  panel.querySelector("[data-edit-own-profile]")?.addEventListener("click", () => byId("profileName").focus());
+  panel.querySelector("[data-block-user]")?.addEventListener("click", () => toggleProfileBlock(profile));
+  panel.querySelectorAll("[data-public-card]").forEach(button => { button.onclick = () => { const card = cards.find(item => item.id === Number(button.dataset.publicCard)); if (card) showDetail(card); }; });
+  panel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+async function viewCommunityProfile(userId) {
+  const panel = byId("viewedProfile"); panel.hidden = false; panel.innerHTML = '<div class="empty-small">Carregando coleção…</div>';
+  const { data, error } = await supabase.rpc("get_album_profile", { p_user: userId }).maybeSingle();
+  if (error) { panel.innerHTML = `<div class="collection-lock">${escapeHtml(error.message)}</div>`; return; }
+  if (!data) { panel.innerHTML = '<div class="collection-lock">Este perfil não está disponível.</div>'; return; }
+  renderViewedProfile(data);
+}
+async function toggleProfileBlock(profile) {
+  const blocking = !profile.is_blocked_by_me;
+  const prompt = blocking ? `Bloquear @${profile.handle}? A amizade será removida e vocês não poderão ver as coleções um do outro.` : `Desbloquear @${profile.handle}?`;
+  if (!confirm(prompt)) return;
+  const { error } = await supabase.rpc("set_profile_block", { p_target: profile.user_id, p_block: blocking });
+  if (error) return alert(error.message);
+  communityLoaded = false;
+  byId("viewedProfile").hidden = true;
+  await Promise.all([loadLeaderboard(true), refreshSocial()]);
+  if (byId("userSearchInput").value.trim()) await searchCommunityUsers(byId("userSearchInput").value.trim());
 }
 function friendFrom(row) { return row.requester_id === currentUser.id ? row.addressee : row.requester; }
 function renderFriends() {
@@ -269,7 +355,7 @@ function renderTrades() {
   document.querySelectorAll("[data-trade-cancel]").forEach(button => button.onclick = () => cancelTrade(Number(button.dataset.tradeCancel)));
 }
 async function refreshSocial() {
-  const profileQuery = supabase.from("social_profiles").select("user_id,handle,display_name,featured_card").eq("user_id", currentUser.id).single();
+  const profileQuery = supabase.from("social_profiles").select("user_id,handle,display_name,featured_card,bio,accent_color,avatar_card,collection_visibility,show_in_rankings").eq("user_id", currentUser.id).single();
   const friendshipQuery = supabase.from("friendships").select("id,requester_id,addressee_id,status,requester:social_profiles!friendships_requester_id_fkey(user_id,handle,display_name,featured_card),addressee:social_profiles!friendships_addressee_id_fkey(user_id,handle,display_name,featured_card)").order("created_at", { ascending: false });
   const feedQuery = supabase.from("feed_posts").select("id,user_id,card_id,caption,created_at,author:social_profiles!feed_posts_user_id_fkey(user_id,handle,display_name)").order("created_at", { ascending: false }).limit(40);
   const tradeQuery = supabase.from("sticker_trades").select("id,proposer_id,recipient_id,offered_card_id,requested_card_id,status,created_at,proposer:social_profiles!sticker_trades_proposer_id_fkey(user_id,handle,display_name),recipient:social_profiles!sticker_trades_recipient_id_fkey(user_id,handle,display_name)").order("created_at", { ascending: false }).limit(50);
@@ -369,7 +455,7 @@ async function loadProfile(user) {
   if (profileError) throw profileError; if (progressError) throw progressError;
   state.owned = progress.owned || {}; state.juice = progress.coins || 0; state.lastOpened = progress.last_daily_pack; state.packs = progress.packs_opened || 0; state.activities = progress.daily_activity_date === todayKey() ? (progress.daily_activities || {}) : {}; state.activityDate = progress.daily_activity_date; state.lastRouletteSpin = progress.last_roulette_spin; dailyAvailable = progress.last_daily_pack !== todayKey();
   byId("accountEmail").textContent = profile.name || profile.email; byId("authGate").classList.add("ready"); renderOdds(); renderAll();
-  try { await refreshSocial(); } catch (error) { byId("feedList").innerHTML = `<div class="empty-small">Não foi possível carregar a área social: ${escapeHtml(error.message)}</div>`; }
+  try { await refreshSocial(); if (location.hash === "#community") await loadLeaderboard(); } catch (error) { byId("feedList").innerHTML = `<div class="empty-small">Não foi possível carregar a área social: ${escapeHtml(error.message)}</div>`; }
 }
 async function handleAuth(event) {
   event.preventDefault(); const email = byId("authEmail").value.trim().toLowerCase(), password = byId("authPassword").value, name = byId("authName").value.trim(), handle = normalizeHandle(byId("authHandle").value), button = byId("authSubmit"); let keepDisabled = false; byId("authError").textContent = ""; button.disabled = true; button.textContent = registerMode ? "Criando conta…" : "Entrando…";
@@ -438,6 +524,21 @@ async function initialize() {
 }
 
 document.querySelectorAll("[data-jump]").forEach(button => button.onclick = () => setActiveView(button.dataset.jump));
+document.querySelectorAll("[data-rank-sort]").forEach(button => button.onclick = async () => { rankSort = button.dataset.rankSort; document.querySelectorAll("[data-rank-sort]").forEach(item => item.classList.toggle("active", item === button)); communityLoaded = false; try { await loadLeaderboard(true); } catch (error) { showCommunityError(error); } });
+byId("userSearchForm").addEventListener("submit", async event => { event.preventDefault(); const query = byId("userSearchInput").value.trim(); if (!query) return; const button = event.submitter; button.disabled = true; try { await searchCommunityUsers(query); } catch (error) { byId("userSearchResults").innerHTML = `<div class="empty-small">${escapeHtml(error.message)}</div>`; } finally { button.disabled = false; } });
+byId("openProfileSettings").onclick = () => { setActiveView("community"); setTimeout(() => byId("profileName").focus(), 250); };
+byId("profileForm").addEventListener("submit", async event => {
+  event.preventDefault(); const button = event.submitter, message = byId("profileMessage"), handle = normalizeHandle(byId("profileHandle").value);
+  if (!validHandle(handle)) { message.style.color = "#ff9a8b"; message.textContent = "Use de 3 a 24 letras minúsculas, números ou _."; return; }
+  button.disabled = true; button.textContent = "Salvando…"; message.textContent = "";
+  const avatar = byId("profileAvatar").value;
+  const { error } = await supabase.rpc("update_my_community_profile", { p_handle: handle, p_display_name: byId("profileName").value.trim(), p_bio: byId("profileBio").value.trim(), p_accent_color: byId("profileAccent").value, p_visibility: byId("profileVisibility").value, p_show_in_rankings: byId("profileRanking").checked, p_avatar_card: avatar ? Number(avatar) : null });
+  button.disabled = false; button.textContent = "Salvar perfil e privacidade";
+  if (error) { message.style.color = "#ff9a8b"; message.textContent = error.message; return; }
+  message.style.color = "#5fe0a1"; message.textContent = "Perfil e privacidade atualizados."; communityLoaded = false; await refreshSocial(); byId("accountEmail").textContent = socialProfile.display_name; await loadLeaderboard(true); if (viewedUserId === currentUser.id) await viewCommunityProfile(currentUser.id);
+});
+const updateProfilePreview = () => { const accent = byId("profileAccent").value || "#b277ff", avatar = cards.find(card => card.id === Number(byId("profileAvatar").value)); byId("profilePreview").style.setProperty("--accent", accent); byId("profileAvatarPreview").src = avatar?.image || profileImage(socialProfile, state.owned); byId("profilePreviewName").textContent = byId("profileName").value || "Seu perfil"; byId("profilePreviewHandle").textContent = `@${normalizeHandle(byId("profileHandle").value) || "seu_id"}`; byId("profilePreviewBio").textContent = byId("profileBio").value || "Conte algo sobre você."; };
+["profileName", "profileHandle", "profileBio", "profileAccent", "profileAvatar"].forEach(id => byId(id).addEventListener("input", updateProfilePreview));
 document.querySelectorAll(".filter[data-filter]").forEach(button => button.onclick = () => { currentFilter = button.dataset.filter; document.querySelectorAll(".filter[data-filter]").forEach(item => item.classList.toggle("active", item === button)); renderAlbum(); });
 byId("rarityFilter").onchange = event => { currentRarity = event.target.value; renderAlbum(); }; byId("openPack").onclick = openDaily; byId("buyMystery").onclick = buyMystery; byId("spinRoulette").onclick = spinRoulette; byId("showRules").onclick = () => openModal("rulesModal");
 byId("openClicker").onclick = openClicker;
@@ -453,10 +554,9 @@ window.addEventListener("message", event => {
 document.querySelectorAll("[data-close]").forEach(button => button.onclick = () => closeModal(button.dataset.close)); document.querySelectorAll(".modal").forEach(modal => modal.onclick = event => { if (event.target === modal) closeModal(modal.id); }); document.addEventListener("keydown", event => { if (event.key === "Escape") document.querySelectorAll(".modal.open").forEach(modal => closeModal(modal.id)); });
 byId("postForm").addEventListener("submit", async event => { event.preventDefault(); const cardId = byId("postCard").value; if (!cardId) return; const button = event.submitter; button.disabled = true; try { await publishSticker(cardId, byId("postCaption").value); byId("postCaption").value = ""; } catch (error) { alert(error.message); } finally { button.disabled = false; } });
 byId("friendForm").addEventListener("submit", async event => { event.preventDefault(); const handle = byId("friendHandle").value.trim().replace(/^@/, "").toLowerCase(); if (!handle) return; const button = event.submitter; button.disabled = true; const { error } = await supabase.rpc("send_friend_request", { p_handle: handle }); button.disabled = false; if (error) return alert(error.message); byId("friendHandle").value = ""; await refreshSocial(); });
-byId("handleForm").addEventListener("submit", async event => { event.preventDefault(); const handle = normalizeHandle(byId("profileHandle").value), button = event.submitter, message = byId("handleMessage"); message.style.color = "var(--muted)"; if (!validHandle(handle)) { message.style.color = "#ff9a8b"; message.textContent = "Use de 3 a 24 letras minúsculas, números ou _."; return; } button.disabled = true; button.textContent = "Salvando…"; const { error } = await supabase.rpc("update_my_handle", { p_handle: handle }); button.disabled = false; button.textContent = "Salvar ID"; if (error) { message.style.color = "#ff9a8b"; message.textContent = error.message; return; } message.style.color = "#5fe0a1"; message.textContent = "ID atualizado."; await refreshSocial(); });
 byId("postPickerButton").onclick = () => openStickerPicker("post"); byId("offeredPickerButton").onclick = () => openStickerPicker("offered"); byId("requestedPickerButton").onclick = () => openStickerPicker("requested");
 byId("confirmDeletePost").onclick = deleteOwnPost;
-byId("tradeFriend").addEventListener("change", async event => { const friendId = event.target.value; friendOwned = {}; byId("offeredCard").value = ""; byId("requestedCard").value = ""; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); if (!friendId) return; byId("offeredPickerButton").disabled = true; byId("requestedPickerButton").disabled = true; byId("offeredPickerButton").textContent = "Carregando coleção…"; byId("requestedPickerButton").textContent = "Carregando coleção…"; const { data, error } = await supabase.from("album_progress").select("owned").eq("user_id", friendId).single(); if (error) { event.target.value = ""; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); return alert(error.message); } friendOwned = data.owned || {}; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); });
+byId("tradeFriend").addEventListener("change", async event => { const friendId = event.target.value; friendOwned = {}; byId("offeredCard").value = ""; byId("requestedCard").value = ""; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); if (!friendId) return; byId("offeredPickerButton").disabled = true; byId("requestedPickerButton").disabled = true; byId("offeredPickerButton").textContent = "Carregando coleção…"; byId("requestedPickerButton").textContent = "Carregando coleção…"; const { data, error } = await supabase.rpc("get_album_profile", { p_user: friendId }).maybeSingle(); if (error || !data?.can_view_collection || !data.owned) { event.target.value = ""; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); return alert(error?.message || "Este amigo não permitiu acesso à coleção dele."); } friendOwned = data.owned || {}; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); });
 byId("tradeForm").addEventListener("submit", async event => { event.preventDefault(); const friend = byId("tradeFriend").value, offered = byId("offeredCard").value, requested = byId("requestedCard").value; if (!friend || !offered || !requested) return alert("Escolha o amigo e as duas figurinhas."); const button = event.submitter; button.disabled = true; const { error } = await supabase.rpc("propose_sticker_trade", { p_friend: friend, p_offered: Number(offered), p_requested: Number(requested) }); button.disabled = false; if (error) return alert(error.message); await refreshSocial(); });
 byId("detailPost").onclick = async () => { if (!currentDetailCard) return; byId("detailPost").disabled = true; try { await publishSticker(currentDetailCard.id); closeModal("detailModal"); setActiveView("social"); } catch (error) { alert(error.message); } finally { byId("detailPost").disabled = false; } };
 byId("detailFeature").onclick = async () => { if (!currentDetailCard) return; byId("detailFeature").disabled = true; try { await featureSticker(currentDetailCard.id); closeModal("detailModal"); } catch (error) { alert(error.message); } finally { byId("detailFeature").disabled = false; } };
