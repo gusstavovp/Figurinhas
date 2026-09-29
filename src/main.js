@@ -5,6 +5,7 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "sb_publish
 const configured = supabaseUrl?.startsWith("https://") && supabaseKey?.startsWith("sb_publishable_");
 const supabase = configured ? createClient(supabaseUrl, supabaseKey) : null;
 const TOTAL_CARDS = 110;
+const FALLEN_ANGEL_ID = 111;
 
 const rarities = [
   { id: "common", name: "Comum", color: "#9aa0b6", count: 35, packChance: 65, size: "1–2", guarantee: "1 comum ou melhor" },
@@ -13,7 +14,8 @@ const rarities = [
   { id: "epic", name: "Épica", color: "#b277ff", count: 14, packChance: 4, size: "6", guarantee: "1 épica ou melhor" },
   { id: "mythic", name: "Mítica", color: "#ff6eb5", count: 7, packChance: 2, size: "7", guarantee: "1 mítica ou melhor" },
   { id: "legendary", name: "Lendária", color: "#ffd75f", count: 4, packChance: .8, size: "10", guarantee: "1 lendária exclusiva" },
-  { id: "secret", name: "Secreta", color: "#ff775f", count: 3, packChance: .2, size: "10", guarantee: "1 lendária + 1 secreta" }
+  { id: "secret", name: "Secreta", color: "#ff775f", count: 3, packChance: .2, size: "10", guarantee: "1 lendária + 1 secreta" },
+  { id: "supersecret", name: "Supersecreta", color: "#d9a7ff", count: 1, packChance: null, size: "Bônus", guarantee: "0,01% em qualquer pacote ou roleta" }
 ];
 
 const cardNames = [
@@ -37,8 +39,9 @@ const cardNames = [
   "Pedro Víctor Naruto", "Pedro Víctor Sakura", "Pedro Víctor Kakashi", "Pedro Víctor lendo livro", "Pedro Víctor consertando carro",
   "Pedro Víctor consertando computador", "Pedro Víctor cafetão", "Pedro Víctor sugar baby", "Pedro Víctor bebezão da boca inchada", "Pedro Víctor Kurapika Kurta",
   "Pedro Víctor sombra", "Pedro Víctor luz", "Pedro Víctor apaixonado", "Pedro Víctor com raiva", "Pedro Víctor feliz",
-  "Pedro Víctor babando", "Pedro Víctor Voldemort", "Pedro Víctor Salsicha", "Pedro Víctor Scooby-Doo", "Pedro Víctor + Marília",
-  "Pedro Víctor Trox", "Pedro Víctor Mamutinho", "Pedro Víctor dedo enroscado", "Pedro Víctor Fantominho", "Pedro Víctor"
+  "Pedro Víctor babando", "Pedro Víctor Voldemort", "Pedro Víctor Salsicha", "Pedro Víctor Scooby-Doo", "Pedro Víctor + Namorada",
+  "Pedro Víctor Trox", "Pedro Víctor Mamutinho", "Pedro Víctor dedo enroscado", "Pedro Víctor Fantominho", "Pedro Víctor",
+  "Pedro Víctor — Olhar do Anjo Caído"
 ];
 
 const uncommonIds = new Set([7, 9, 16, 25, 28, 31, 32, 33, 34, 36, 37, 39, 40, 42, 47, 55, 58, 66, 68, 75, 77, 78, 79, 80, 81, 83]);
@@ -47,7 +50,8 @@ const epicIds = new Set([1, 11, 17, 18, 19, 24, 26, 27, 49, 60, 61, 84, 85, 88])
 const mythicIds = new Set([13, 38, 54, 69, 95, 96, 97]);
 const legendaryIds = new Set([4, 67, 102, 109]);
 const secretIds = new Set([5, 12, 110]);
-const rarityFor = id => secretIds.has(id) ? "secret" : legendaryIds.has(id) ? "legendary" : mythicIds.has(id) ? "mythic" : epicIds.has(id) ? "epic" : rareIds.has(id) ? "rare" : uncommonIds.has(id) ? "uncommon" : "common";
+const superSecretIds = new Set([111]);
+const rarityFor = id => superSecretIds.has(id) ? "supersecret" : secretIds.has(id) ? "secret" : legendaryIds.has(id) ? "legendary" : mythicIds.has(id) ? "mythic" : epicIds.has(id) ? "epic" : rareIds.has(id) ? "rare" : uncommonIds.has(id) ? "uncommon" : "common";
 const packThemes = [
   { id: "animatronics", name: "Animatronics", icon: "🤖", color: "#ff775f", description: "Freddy, Chica, Foxy, Bonnie e companhia.", cardIds: [8,9,10,11,12,13,14,69] },
   { id: "food", name: "Comidas & bebidas", icon: "🧃", color: "#ffd66b", description: "Suco de Caju, arroz, feijão e outras delícias.", cardIds: [4,5,6,7,35,55,65,66,68,103,104] },
@@ -58,17 +62,17 @@ const packThemes = [
   { id: "special", name: "Estilos & especiais", icon: "✨", color: "#ff6eb5", description: "Amigos, emoções, estilos e versões inesperadas.", cardIds: [1,2,3,16,28,29,32,33,36,37,40,41,42,44,46,50,51,56,57,58,59,77,78,79,80,81,92,93,94,96,97,98,99,100,101,105,106,107,108,110] }
 ];
 const themePackSize = theme => theme.cardIds.length <= 10 ? 3 : 5;
-const icons = ["🐺", "🎨", "6️⃣", "🧃", "🥤", "🍛", "🍚", "🐻", "🐤", "🦊", "🐰", "🎭", "🤖", "🩰", "📐", "🌈", "🦇", "⚔️", "🦸", "⚡", "🃏", "♦️", "🎲", "💚", "🌙", "🎣", "🚗", "🤝", "😎", "🍳", "👮", "🦜", "🩴", "⌚", "🥩", "🎤", "🐴", "🟣", "🎮", "🎬", "💘", "🤡", "⚽", "🔊", "🕹️", "🍔", "🏋️", "⛏️", "🧙", "🧒", "👸", "👴", "💗", "🔥", "🧽", "👨", "✨", "🌵", "💰", "🌊", "🐉", "🏰", "👦", "🧪", "🦑", "⭐", "⚡", "🍓", "🐇", "🏍️", "👣", "🐊", "🧜", "🧢", "🔥", "🌳", "💇", "😎", "🖤", "🎨", "🧔", "🚌", "🚍", "🎙️", "👁️", "🍥", "🌸", "🥷", "📚", "🔧", "💻", "🕴️", "💎", "👶", "⛓️", "🌑", "☀️", "😍", "😡", "😁", "🤤", "🪄", "🥪", "🐕", "💞", "🤪", "🦣", "☝️", "👻", "❓"];
+const icons = ["🐺", "🎨", "6️⃣", "🧃", "🥤", "🍛", "🍚", "🐻", "🐤", "🦊", "🐰", "🎭", "🤖", "🩰", "📐", "🌈", "🦇", "⚔️", "🦸", "⚡", "🃏", "♦️", "🎲", "💚", "🌙", "🎣", "🚗", "🤝", "😎", "🍳", "👮", "🦜", "🩴", "⌚", "🥩", "🎤", "🐴", "🟣", "🎮", "🎬", "💘", "🤡", "⚽", "🔊", "🕹️", "🍔", "🏋️", "⛏️", "🧙", "🧒", "👸", "👴", "💗", "🔥", "🧽", "👨", "✨", "🌵", "💰", "🌊", "🐉", "🏰", "👦", "🧪", "🦑", "⭐", "⚡", "🍓", "🐇", "🏍️", "👣", "🐊", "🧜", "🧢", "🔥", "🌳", "💇", "😎", "🖤", "🎨", "🧔", "🚌", "🚍", "🎙️", "👁️", "🍥", "🌸", "🥷", "📚", "🔧", "💻", "🕴️", "💎", "👶", "⛓️", "🌑", "☀️", "😍", "😡", "😁", "🤤", "🪄", "🥪", "🐕", "💞", "🤪", "🦣", "☝️", "👻", "❓", "👁️"];
 const cards = cardNames.map((name, index) => ({
   id: index + 1,
   name,
   rarity: rarityFor(index + 1),
   icon: icons[index],
-  image: `/stickers/cards/${String(index + 1).padStart(3, "0")}.jpg`,
-  description: `Uma versão única de Pedro Víctor para a coleção. ${rarityFor(index + 1) === "secret" ? "Esta figurinha secreta só aparece depois de ser descoberta." : "Encontre-a abrindo pacotes e cumprindo missões."}`
+  image: index + 1 === FALLEN_ANGEL_ID ? "/stickers/cards/111.png" : `/stickers/cards/${String(index + 1).padStart(3, "0")}.jpg`,
+  description: index + 1 === FALLEN_ANGEL_ID ? "A figurinha mais rara do universo Pedro Víctor. Ela só se revela depois de ser encontrada, com 0,01% de chance em qualquer pacote ou na roleta." : `Uma versão única de Pedro Víctor para a coleção. ${rarityFor(index + 1) === "secret" ? "Esta figurinha secreta só aparece depois de ser descoberta." : "Encontre-a abrindo pacotes e cumprindo missões."}`
 }));
 
-const juiceRewards = { common: 2, uncommon: 4, rare: 7, epic: 12, mythic: 20, legendary: 35, secret: 60 };
+const juiceRewards = { common: 2, uncommon: 4, rare: 7, epic: 12, mythic: 20, legendary: 35, secret: 60, supersecret: 250 };
 const missions = [
   { id: "daily_pack", icon: "🎁", title: "Explorador diário", description: "Abra o pacote grátis do dia.", reward: "Pacote + 5 🧃" },
   { id: "memory", icon: "🧠", title: "Memória cósmica", description: "Encontre seis pares em 40 segundos e com no máximo 12 erros.", reward: "+8 🧃" },
@@ -76,14 +80,20 @@ const missions = [
   { id: "caju", icon: "🧃", title: "Caça ao caju", description: "Pegue dez cajus móveis em apenas 12 segundos.", reward: "+10 🧃" },
   { id: "rarity", icon: "💎", title: "Mestre das raridades", description: "Identifique a raridade de cinco figurinhas. Dois erros encerram a rodada.", reward: "+7 🧃" },
   { id: "sequence", icon: "👁️", title: "Sequência secreta", description: "Memorize cinco figurinhas e repita a ordem sem errar.", reward: "+9 🧃" },
-  { id: "order", icon: "🔢", title: "Ordem relâmpago", description: "Toque em oito figurinhas, do menor número ao maior, em 14 segundos.", reward: "+11 🧃" }
+  { id: "order", icon: "🔢", title: "Ordem relâmpago", description: "Toque em oito figurinhas, do menor número ao maior, em 14 segundos.", reward: "+11 🧃" },
+  { id: "reflex", icon: "⚡", title: "Reflexo astral", description: "Espere o sinal e toque em menos de 650 ms. Clicar antes faz você perder.", reward: "+8 🧃" },
+  { id: "duel", icon: "⚔️", title: "Duelo de raridades", description: "Escolha a mais rara em cinco duelos. Um erro encerra a rodada.", reward: "+9 🧃" }
 ];
-const state = { owned: {}, juice: 0, lastOpened: null, packs: 0, activities: {}, activityDate: null };
+const state = { owned: {}, juice: 0, lastOpened: null, packs: 0, activities: {}, activityDate: null, lastRouletteSpin: null };
 let currentFilter = "all", currentRarity = "all", registerMode = false, dailyAvailable = false, gameTimer = null, targetTimer = null;
 let currentUser = null, socialProfile = null, friends = [], friendships = [], trades = [], currentDetailCard = null, friendOwned = {}, postPendingDelete = null;
 const byId = id => document.getElementById(id);
+const clickerOrigin = "https://suco-de-caju-clicker.vercel.app";
 const rarity = id => rarities.find(r => r.id === id);
 const todayKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Fortaleza" }).format(new Date());
+const normalizeHandle = value => String(value || "").trim().replace(/^@/, "").toLowerCase();
+const validHandle = value => /^[a-z0-9_]{3,24}$/.test(normalizeHandle(value));
+const signupCooldownMs = 2 * 60 * 1000;
 
 function stats() {
   const unique = Object.keys(state.owned).filter(k => state.owned[k] > 0 && Number(k) <= TOTAL_CARDS).length;
@@ -99,15 +109,16 @@ function renderStats() {
 }
 function renderAlbum() {
   const grid = byId("albumGrid");
-  const filtered = cards.filter(card => { const owned = Boolean(state.owned[card.id]); if (card.rarity === "secret" && !owned) return false; return (currentFilter === "all" || (currentFilter === "owned" && owned) || (currentFilter === "missing" && !owned)) && (currentRarity === "all" || card.rarity === currentRarity); });
+  const filtered = cards.filter(card => { const owned = Boolean(state.owned[card.id]); if (["secret", "supersecret"].includes(card.rarity) && !owned) return false; return (currentFilter === "all" || (currentFilter === "owned" && owned) || (currentFilter === "missing" && !owned)) && (currentRarity === "all" || card.rarity === currentRarity); });
   grid.innerHTML = filtered.length ? "" : '<div class="empty">Nenhuma figurinha combina com este filtro. As secretas só surgem quando descobertas.</div>';
   filtered.forEach(card => { const r = rarity(card.rarity), owned = Boolean(state.owned[card.id]), button = document.createElement("button"); button.className = `sticker rarity-${card.rarity} ${owned ? "" : "locked"}`; button.style.setProperty("--rarity", r.color); button.innerHTML = `<span class="sticker-badge">${r.name}</span>${state.owned[card.id] > 1 ? `<span class="dupe">+${state.owned[card.id] - 1}</span>` : ""}<img class="sticker-visual sticker-photo" src="${card.image}" alt="" loading="lazy" decoding="async"><span class="sticker-info"><span class="sticker-name">${owned ? card.name : "Figurinha oculta"}</span><span class="sticker-rarity">${r.name}</span></span>`; button.disabled = !owned; button.setAttribute("aria-label", owned ? `${card.name}, ${r.name}` : `Figurinha ${card.id} ainda não encontrada`); if (owned) button.onclick = () => showDetail(card); grid.appendChild(button); });
 }
 function renderOdds() {
-  const rows = (metric, max, formatter) => rarities.map(r => `<div class="prob-row"><span class="rarity-key"><i class="dot" style="--c:${r.color}"></i>${r.name}</span><span class="bar"><i style="--c:${r.color};--w:${(r[metric] / max) * 100}%"></i></span><b>${formatter(r[metric])}</b></div>`).join("");
-  byId("packOdds").innerHTML = rows("packChance", 65, value => `${value}%`); byId("stickerOdds").innerHTML = rows("count", 35, String);
-  byId("packRules").innerHTML = rarities.map(r => `<tr><td><span class="rarity-key"><i class="dot" style="--c:${r.color}"></i>${r.name}</span></td><td>${r.size} figurinhas</td><td>${r.guarantee}</td><td><strong>+${juiceRewards[r.id]} 🧃</strong></td></tr>`).join("");
-  byId("rarityFilter").innerHTML = '<option value="all">Toda raridade</option>' + rarities.filter(r => r.id !== "secret" || cards.some(card => card.rarity === "secret" && state.owned[card.id])).map(r => `<option value="${r.id}">${r.name}</option>`).join("");
+  const rows = (items, metric, max, formatter) => items.map(r => `<div class="prob-row"><span class="rarity-key"><i class="dot" style="--c:${r.color}"></i>${r.name}</span><span class="bar"><i style="--c:${r.color};--w:${(r[metric] / max) * 100}%"></i></span><b>${formatter(r[metric])}</b></div>`).join("");
+  const packRarities = rarities.filter(r => r.packChance !== null);
+  byId("packOdds").innerHTML = rows(packRarities, "packChance", 65, value => `${value}%`); byId("stickerOdds").innerHTML = rows(rarities, "count", 35, String);
+  byId("packRules").innerHTML = rarities.map(r => `<tr><td><span class="rarity-key"><i class="dot" style="--c:${r.color}"></i>${r.name}</span></td><td>${r.size}${r.size === "Bônus" ? "" : " figurinhas"}</td><td>${r.guarantee}</td><td><strong>+${juiceRewards[r.id]} 🧃</strong></td></tr>`).join("");
+  byId("rarityFilter").innerHTML = '<option value="all">Toda raridade</option>' + rarities.filter(r => !["secret", "supersecret"].includes(r.id) || cards.some(card => card.rarity === r.id && state.owned[card.id])).map(r => `<option value="${r.id}">${r.name}</option>`).join("");
 }
 function missionDone(id) { return id === "daily_pack" ? !dailyAvailable : state.activityDate === todayKey() && Boolean(state.activities?.[id]); }
 function renderMissions() {
@@ -117,23 +128,56 @@ function renderMissions() {
   document.querySelectorAll("[data-mission]").forEach(button => button.onclick = () => { const id = button.dataset.mission; if (id === "daily_pack") setActiveView("album"); else startGame(id); });
 }
 function updateDaily() { const button = byId("openPack"); button.disabled = !dailyAvailable; button.textContent = dailyAvailable ? "Abrir pacote grátis" : "Pacote de hoje aberto"; byId("packMessage").textContent = dailyAvailable ? "Um pacote está esperando por você." : "Volte amanhã para uma nova surpresa."; byId("countdown").textContent = dailyAvailable ? "Disponível agora" : "Novo pacote à meia-noite"; }
-function renderAll() { renderStats(); renderAlbum(); updateDaily(); renderMissions(); renderOwnedOptions(); }
+function renderRoulette() {
+  const available = state.lastRouletteSpin !== todayKey(), button = byId("spinRoulette");
+  button.disabled = !available;
+  button.textContent = available ? "Girar roleta grátis" : "Roleta usada hoje";
+  byId("rouletteStatus").textContent = available ? "Uma tentativa grátis por dia." : "Volte amanhã para girar novamente.";
+}
+function renderAll() { renderStats(); renderAlbum(); updateDaily(); renderMissions(); renderRoulette(); renderOwnedOptions(); }
 function openModal(id) { byId(id).classList.add("open"); byId(id).querySelector(".close").focus(); document.body.style.overflow = "hidden"; }
-function closeModal(id) { if (id === "gameModal") { if (gameTimer) clearInterval(gameTimer); if (targetTimer) clearInterval(targetTimer); } if (id === "deletePostModal") postPendingDelete = null; gameTimer = null; targetTimer = null; byId(id).classList.remove("open"); document.body.style.overflow = ""; }
+function closeModal(id) { if (id === "gameModal") { if (gameTimer) clearInterval(gameTimer); if (targetTimer) clearInterval(targetTimer); } if (id === "deletePostModal") postPendingDelete = null; if (id === "clickerModal") byId("clickerFrame").src = "about:blank"; gameTimer = null; targetTimer = null; byId(id).classList.remove("open"); document.body.style.overflow = ""; }
+async function sendClickerAuth() {
+  const frame = byId("clickerFrame");
+  if (!frame?.contentWindow || !supabase) return;
+  const { data: { session } } = await supabase.auth.getSession();
+  frame.contentWindow.postMessage({ type: "album-auth", accessToken: session?.access_token || null }, clickerOrigin);
+}
+function openClicker() {
+  const frame = byId("clickerFrame");
+  openModal("clickerModal");
+  frame.src = `${clickerOrigin}/?embedded=1`;
+}
 function showDetail(card) { currentDetailCard = card; const r = rarity(card.rarity), icon = byId("detailIcon"); icon.className = `detail-icon rarity-${card.rarity}`; icon.style.setProperty("--rarity", r.color); icon.innerHTML = `<img src="${card.image}" alt="${card.name}">`; byId("detailRarity").textContent = `#${String(card.id).padStart(3, "0")} · ${r.name}`; byId("detailRarity").style.color = r.color; byId("detailTitle").textContent = card.name; byId("detailText").textContent = card.description + (state.owned[card.id] > 1 ? ` Você possui ${state.owned[card.id]} cópias.` : ""); openModal("detailModal"); }
 function burst() { const box = byId("confetti"), colors = rarities.map(r => r.color); box.innerHTML = ""; for (let i = 0; i < 42; i++) { const piece = document.createElement("i"); piece.style.cssText = `left:${Math.random() * 100}%;--x:${(Math.random() - .5) * 300}px;--c:${colors[i % colors.length]};animation-delay:${Math.random() * .4}s`; box.appendChild(piece); } setTimeout(() => box.innerHTML = "", 2500); }
 function showPack(data, source) {
   const payload = typeof data === "string" ? JSON.parse(data) : data; Object.assign(state, payload.state); dailyAvailable = payload.daily_available;
-  const tier = rarities.findIndex(r => r.id === payload.pack_tier), entries = payload.entries.map(entry => ({ card: cards.find(card => card.id === entry.id), isNew: entry.is_new })).filter(entry => entry.card), newCount = entries.filter(entry => entry.isNew).length;
-  const revealModal = byId("revealModal"); revealModal.className = `modal tier-${payload.pack_tier}`; revealModal.style.setProperty("--pack-color", rarities[tier].color);
-  byId("revealTier").textContent = source === "theme" ? `Pacote temático · ${payload.pack_rarity}` : `${source === "mystery" ? "Pacote misterioso revelou: " : ""}Pacote ${payload.pack_rarity}`; byId("revealTier").style.color = rarities[tier].color; byId("revealSummary").textContent = `${newCount ? `${newCount} ${newCount === 1 ? "nova figurinha" : "novas figurinhas"}` : "Somente repetidas"}${payload.reward ? ` · +${payload.reward} 🧃` : ""}`; byId("revealGrid").innerHTML = "";
+  const entries = payload.entries.map(entry => ({ card: cards.find(card => card.id === entry.id), isNew: entry.is_new })).filter(entry => entry.card), newCount = entries.filter(entry => entry.isNew).length, wonFallenAngel = entries.some(entry => entry.card.id === FALLEN_ANGEL_ID), packRarity = rarity(payload.pack_tier), visualRarity = wonFallenAngel ? rarity("supersecret") : packRarity;
+  const revealModal = byId("revealModal"); revealModal.className = `modal tier-${wonFallenAngel ? "supersecret" : payload.pack_tier}`; revealModal.style.setProperty("--pack-color", visualRarity.color);
+  byId("revealTier").textContent = wonFallenAngel ? "✦ A SUPERSECRETA ESCOLHEU VOCÊ ✦" : source === "theme" ? `Pacote temático · ${payload.pack_rarity}` : `${source === "mystery" ? "Pacote misterioso revelou: " : ""}Pacote ${payload.pack_rarity}`; byId("revealTier").style.color = visualRarity.color; byId("revealSummary").textContent = `${newCount ? `${newCount} ${newCount === 1 ? "nova figurinha" : "novas figurinhas"}` : "Somente repetidas"}${payload.reward ? ` · +${payload.reward} 🧃` : ""}`; byId("revealGrid").innerHTML = "";
   entries.forEach(({ card, isNew }, index) => { const r = rarity(card.rarity), element = document.createElement("div"); element.className = `reveal-card rarity-${card.rarity}${isNew ? " is-new" : ""}`; element.style.cssText = `--rarity:${r.color};animation-delay:${index * .08}s`; element.innerHTML = `<img class="reveal-image" src="${card.image}" alt="${card.name}"><div class="reveal-info"><b>${card.name}</b><small>${r.name}</small>${isNew ? '<div class="new-tag">NOVA</div>' : ""}</div>`; byId("revealGrid").appendChild(element); });
-  openModal("revealModal"); if (tier >= 4 || newCount >= 3) burst(); renderOdds(); renderAll(); return payload;
+  openModal("revealModal"); if (wonFallenAngel || ["mythic", "legendary", "secret"].includes(payload.pack_tier) || newCount >= 3) burst(); renderOdds(); renderAll(); return payload;
 }
 async function openPack(source) { const panel = document.querySelector(".pack-panel"); if (source === "daily") panel?.classList.add("opening"); try { const { data, error } = await supabase.rpc("open_album_pack", { p_source: source }); if (error) throw error; return showPack(data, source); } finally { panel?.classList.remove("opening"); } }
 async function openDaily() { if (!dailyAvailable) return; byId("openPack").disabled = true; try { return await openPack("daily"); } catch (error) { alert(error.message); updateDaily(); } }
 async function buyMystery() { if (state.juice < 30) return; byId("buyMystery").disabled = true; try { return await openPack("mystery"); } catch (error) { alert(error.message); renderStats(); } }
 async function buyTheme(themeId) { if (state.juice < 40) return; const button = document.querySelector(`[data-buy-theme="${themeId}"]`); button.disabled = true; try { const { data, error } = await supabase.rpc("open_themed_album_pack", { p_theme: themeId }); if (error) throw error; return showPack(data, "theme"); } catch (error) { alert(error.message); renderStats(); } }
+async function spinRoulette() {
+  const button = byId("spinRoulette"), wheel = byId("rouletteWheel"), result = byId("rouletteResult");
+  button.disabled = true; result.textContent = "A roleta está girando…"; wheel.classList.remove("spinning"); void wheel.offsetWidth; wheel.classList.add("spinning");
+  try {
+    const { data, error } = await supabase.rpc("spin_fallen_angel_roulette"); if (error) throw error;
+    const payload = typeof data === "string" ? JSON.parse(data) : data;
+    state.owned = payload.owned || state.owned; state.juice = payload.coins; state.lastRouletteSpin = payload.last_spin;
+    await new Promise(resolve => setTimeout(resolve, 1700));
+    if (payload.prize === "fallen_angel") {
+      result.innerHTML = payload.is_new ? "✦ Você encontrou <strong>Pedro Víctor — Olhar do Anjo Caído</strong>!" : `A supersecreta veio repetida e virou <strong>+${payload.amount} 🧃</strong>.`;
+      burst(); showDetail(cards.find(card => card.id === FALLEN_ANGEL_ID));
+    } else result.innerHTML = `Você ganhou <strong>+${payload.amount} 🧃 Suco de Caju</strong>.`;
+    renderOdds(); renderAll();
+  } catch (error) { result.textContent = error.message; renderRoulette(); }
+  finally { wheel.classList.remove("spinning"); }
+}
 function renderThemePacks() {
   byId("themePackGrid").innerHTML = packThemes.map(theme => { const previews = theme.cardIds.filter(id => rarityFor(id) !== "secret").slice(0, 3), packSize = themePackSize(theme); return `<article class="theme-pack" style="--theme:${theme.color}"><div class="theme-pack-head"><span>${theme.icon}</span><div><h3>Pedro Víctor ${theme.name}</h3><small>${theme.cardIds.length} figurinhas possíveis</small></div></div><div class="theme-preview">${previews.map(id => `<img src="/stickers/cards/${String(id).padStart(3, "0")}.jpg" alt="" loading="lazy">`).join("")}</div><p>${theme.description}</p><button class="primary" type="button" data-buy-theme="${theme.id}">Abrir pacote temático<span class="cost">40 🧃 · ${packSize} figurinhas</span></button></article>`; }).join("");
   document.querySelectorAll("[data-buy-theme]").forEach(button => button.onclick = () => buyTheme(button.dataset.buyTheme));
@@ -193,6 +237,7 @@ function renderSocialProfile() {
   if (!socialProfile) return;
   byId("socialName").textContent = socialProfile.display_name;
   byId("socialHandle").textContent = `@${socialProfile.handle}`;
+  if (document.activeElement !== byId("profileHandle")) byId("profileHandle").value = socialProfile.handle;
   const featured = cards.find(card => card.id === socialProfile.featured_card);
   byId("featuredImage").src = featured?.image || ownedCards()[0]?.image || cards[0].image;
   byId("featuredImage").style.opacity = featured ? "1" : ".35";
@@ -299,21 +344,71 @@ function startOrderChallenge() {
   byId("gameContent").querySelectorAll("[data-order-card]").forEach(button => button.onclick = () => { if (finished) return; if (Number(button.dataset.orderCard) !== ordered[next].id) { finished = true; return gameLoss("Você tocou em uma figurinha fora da ordem crescente.", startOrderChallenge); } button.disabled = true; button.classList.add("correct"); next++; byId("orderProgress").textContent = `${next}/8 corretas`; if (next === ordered.length) { finished = true; clearInterval(gameTimer); gameTimer = null; completeActivity("order", next).catch(error => alert(error.message)); } });
   gameTimer = setInterval(() => { seconds--; const clock = byId("orderTime"); if (clock) clock.textContent = `⏱ ${seconds}s`; if (seconds <= 0 && !finished) { finished = true; gameLoss(`O tempo acabou. Você acertou ${next} de 8.`, startOrderChallenge); } }, 1000);
 }
-function startGame(id) { if (missionDone(id)) return; byId("gameTitle").textContent = missions.find(mission => mission.id === id)?.title || "Minijogo"; openModal("gameModal"); if (id === "memory") startMemory(); if (id === "quiz") startQuiz(); if (id === "caju") startCaju(); if (id === "rarity") startRarityChallenge(); if (id === "sequence") startSequence(); if (id === "order") startOrderChallenge(); }
+function startReflex() {
+  let armed = false, finished = false, startAt = 0;
+  byId("gameContent").innerHTML = '<p class="game-copy">Não clique antes do sinal verde. Depois do sinal, você tem 650 milissegundos.</p><button class="reflex-pad waiting" type="button" aria-label="Área do desafio de reflexo"><span>ESPERE…</span></button><div class="game-status">Concentre-se.</div>';
+  const pad = byId("gameContent").querySelector(".reflex-pad"), status = byId("gameContent").querySelector(".game-status");
+  targetTimer = setTimeout(() => { armed = true; startAt = performance.now(); pad.className = "reflex-pad go"; pad.querySelector("span").textContent = "AGORA!"; status.textContent = "Clique!"; gameTimer = setTimeout(() => { if (!finished) { finished = true; gameLoss("Você demorou mais de 650 ms para reagir.", startReflex); } }, 650); }, 1500 + Math.random() * 2500);
+  pad.onclick = () => { if (finished) return; if (!armed) { finished = true; clearTimeout(targetTimer); return gameLoss("Você clicou antes do sinal verde.", startReflex); } finished = true; clearTimeout(gameTimer); const reaction = Math.round(performance.now() - startAt); status.textContent = `${reaction} ms`; completeActivity("reflex", 1).catch(error => alert(error.message)); };
+}
+function startRarityDuel() {
+  const rank = id => rarities.findIndex(item => item.id === id), pool = cards.filter(card => !["secret", "supersecret"].includes(card.rarity)); let round = 0;
+  const showDuel = () => {
+    let pair = [...pool].sort(() => Math.random() - .5).slice(0, 2); while (pair[0].rarity === pair[1].rarity) pair = [...pool].sort(() => Math.random() - .5).slice(0, 2);
+    const winner = rank(pair[0].rarity) > rank(pair[1].rarity) ? pair[0] : pair[1];
+    byId("gameContent").innerHTML = `<div class="game-hud"><span>Duelo ${round + 1}/5</span><span>❤️ Uma vida</span></div><p class="game-copy">Qual destas duas figurinhas é mais rara?</p><div class="duel-grid">${pair.map(card => `<button type="button" data-duel-card="${card.id}" style="--rarity:${rarity(card.rarity).color}"><img src="${card.image}" alt="${escapeHtml(card.name)}"><b>#${String(card.id).padStart(3, "0")}</b><small>${escapeHtml(card.name)}</small></button>`).join("")}</div>`;
+    byId("gameContent").querySelectorAll("[data-duel-card]").forEach(button => button.onclick = () => { if (Number(button.dataset.duelCard) !== winner.id) return gameLoss("Você escolheu a figurinha menos rara.", startRarityDuel); round++; if (round === 5) completeActivity("duel", 5).catch(error => alert(error.message)); else showDuel(); });
+  };
+  showDuel();
+}
+function startGame(id) { if (missionDone(id)) return; byId("gameTitle").textContent = missions.find(mission => mission.id === id)?.title || "Minijogo"; openModal("gameModal"); if (id === "memory") startMemory(); if (id === "quiz") startQuiz(); if (id === "caju") startCaju(); if (id === "rarity") startRarityChallenge(); if (id === "sequence") startSequence(); if (id === "order") startOrderChallenge(); if (id === "reflex") startReflex(); if (id === "duel") startRarityDuel(); }
 
 async function loadProfile(user) {
   currentUser = user;
-  const [{ data: profile, error: profileError }, { data: progress, error: progressError }] = await Promise.all([supabase.from("profiles").select("name,email").eq("id", user.id).single(), supabase.from("album_progress").select("owned,coins,last_daily_pack,packs_opened,daily_activities,daily_activity_date").eq("user_id", user.id).single()]);
+  const [{ data: profile, error: profileError }, { data: progress, error: progressError }] = await Promise.all([supabase.from("profiles").select("name,email").eq("id", user.id).single(), supabase.from("album_progress").select("owned,coins,last_daily_pack,packs_opened,daily_activities,daily_activity_date,last_roulette_spin").eq("user_id", user.id).single()]);
   if (profileError) throw profileError; if (progressError) throw progressError;
-  state.owned = progress.owned || {}; state.juice = progress.coins || 0; state.lastOpened = progress.last_daily_pack; state.packs = progress.packs_opened || 0; state.activities = progress.daily_activity_date === todayKey() ? (progress.daily_activities || {}) : {}; state.activityDate = progress.daily_activity_date; dailyAvailable = progress.last_daily_pack !== todayKey();
+  state.owned = progress.owned || {}; state.juice = progress.coins || 0; state.lastOpened = progress.last_daily_pack; state.packs = progress.packs_opened || 0; state.activities = progress.daily_activity_date === todayKey() ? (progress.daily_activities || {}) : {}; state.activityDate = progress.daily_activity_date; state.lastRouletteSpin = progress.last_roulette_spin; dailyAvailable = progress.last_daily_pack !== todayKey();
   byId("accountEmail").textContent = profile.name || profile.email; byId("authGate").classList.add("ready"); renderOdds(); renderAll();
   try { await refreshSocial(); } catch (error) { byId("feedList").innerHTML = `<div class="empty-small">Não foi possível carregar a área social: ${escapeHtml(error.message)}</div>`; }
 }
 async function handleAuth(event) {
-  event.preventDefault(); const email = byId("authEmail").value.trim(), password = byId("authPassword").value, name = byId("authName").value.trim(), button = byId("authSubmit"); byId("authError").textContent = ""; button.disabled = true; button.textContent = registerMode ? "Criando conta…" : "Entrando…";
-  try { if (registerMode) { const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { name } } }); if (error) throw error; if (!data.session) { byId("authError").style.color = "#5fe0a1"; byId("authError").textContent = "Conta criada! Confirme o e-mail para entrar."; return; } } else { const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) throw error; } } catch (error) { byId("authError").style.color = "#ff9a8b"; byId("authError").textContent = error.message; } finally { button.disabled = false; button.textContent = registerMode ? "Criar conta" : "Entrar"; }
+  event.preventDefault(); const email = byId("authEmail").value.trim().toLowerCase(), password = byId("authPassword").value, name = byId("authName").value.trim(), handle = normalizeHandle(byId("authHandle").value), button = byId("authSubmit"); let keepDisabled = false; byId("authError").textContent = ""; button.disabled = true; button.textContent = registerMode ? "Criando conta…" : "Entrando…";
+  try {
+    if (registerMode) {
+      if (!validHandle(handle)) throw new Error("Escolha um ID com 3 a 24 letras minúsculas, números ou _.");
+      const attemptKey = `album_signup_attempt:${email}`, lastAttempt = Number(localStorage.getItem(attemptKey) || 0), waitSeconds = Math.ceil((signupCooldownMs - (Date.now() - lastAttempt)) / 1000);
+      if (waitSeconds > 0) throw new Error(`Aguarde ${waitSeconds} segundos antes de solicitar outro cadastro para este e-mail.`);
+      const { data: available, error: availabilityError } = await supabase.rpc("is_social_handle_available", { p_handle: handle });
+      if (availabilityError) throw availabilityError;
+      if (!available) throw new Error("Esse ID já está em uso. Escolha outro.");
+      localStorage.setItem(attemptKey, String(Date.now()));
+      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { name, handle } } });
+      if (error) throw error;
+      if (!data.session) { keepDisabled = true; byId("authError").style.color = "#5fe0a1"; byId("authError").textContent = "Conta criada! Enviamos um único e-mail de confirmação. Verifique a caixa de entrada e o spam."; return; }
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) throw error;
+    }
+  } catch (error) {
+    const rawMessage = error?.message || "Não foi possível concluir o cadastro.";
+    byId("authError").style.color = "#ff9a8b";
+    byId("authError").textContent = /rate limit|too many requests|email rate/i.test(rawMessage) ? "Muitas solicitações de e-mail foram feitas. Aguarde alguns minutos e tente novamente apenas uma vez." : rawMessage;
+  } finally { button.disabled = keepDisabled; button.textContent = keepDisabled ? "E-mail enviado" : registerMode ? "Criar conta" : "Entrar"; }
 }
-function toggleAuth() { registerMode = !registerMode; byId("authTitle").textContent = registerMode ? "Criar sua conta" : "Entrar no álbum"; byId("nameField").style.display = registerMode ? "block" : "none"; byId("authName").required = registerMode; byId("authPassword").autocomplete = registerMode ? "new-password" : "current-password"; byId("authSubmit").textContent = registerMode ? "Criar conta" : "Entrar"; byId("authToggle").textContent = registerMode ? "Já tenho uma conta" : "Ainda não tenho conta"; byId("authError").textContent = ""; }
+function toggleAuth() {
+  registerMode = !registerMode;
+  byId("authTitle").textContent = registerMode ? "Criar sua conta" : "Entrar no álbum";
+  byId("authMessage").textContent = registerMode ? "Escolha seu nome e um ID público único." : "Seu progresso fica salvo na sua conta.";
+  byId("nameField").style.display = registerMode ? "block" : "none";
+  byId("handleField").style.display = registerMode ? "block" : "none";
+  byId("authName").required = registerMode;
+  byId("authHandle").required = registerMode;
+  byId("authPassword").autocomplete = registerMode ? "new-password" : "current-password";
+  ["authName", "authHandle", "authEmail", "authPassword"].forEach(id => { byId(id).value = ""; });
+  byId("authSubmit").disabled = false;
+  byId("authSubmit").textContent = registerMode ? "Criar conta" : "Entrar";
+  byId("authToggle").textContent = registerMode ? "Já tenho uma conta" : "Ainda não tenho conta";
+  byId("authError").textContent = "";
+}
 function showSessionError(error) {
   const message = error?.message || "Não foi possível carregar sua sessão.";
   console.error("Falha ao iniciar o álbum:", message);
@@ -344,10 +439,21 @@ async function initialize() {
 
 document.querySelectorAll("[data-jump]").forEach(button => button.onclick = () => setActiveView(button.dataset.jump));
 document.querySelectorAll(".filter[data-filter]").forEach(button => button.onclick = () => { currentFilter = button.dataset.filter; document.querySelectorAll(".filter[data-filter]").forEach(item => item.classList.toggle("active", item === button)); renderAlbum(); });
-byId("rarityFilter").onchange = event => { currentRarity = event.target.value; renderAlbum(); }; byId("openPack").onclick = openDaily; byId("buyMystery").onclick = buyMystery; byId("showRules").onclick = () => openModal("rulesModal");
+byId("rarityFilter").onchange = event => { currentRarity = event.target.value; renderAlbum(); }; byId("openPack").onclick = openDaily; byId("buyMystery").onclick = buyMystery; byId("spinRoulette").onclick = spinRoulette; byId("showRules").onclick = () => openModal("rulesModal");
+byId("openClicker").onclick = openClicker;
+byId("clickerFrame").addEventListener("load", sendClickerAuth);
+window.addEventListener("message", event => {
+  if (event.origin !== clickerOrigin) return;
+  if (event.data?.type === "clicker-ready") sendClickerAuth();
+  if (event.data?.type === "clicker-reward" && Number.isFinite(Number(event.data.coins))) {
+    state.juice = Number(event.data.coins);
+    renderStats();
+  }
+});
 document.querySelectorAll("[data-close]").forEach(button => button.onclick = () => closeModal(button.dataset.close)); document.querySelectorAll(".modal").forEach(modal => modal.onclick = event => { if (event.target === modal) closeModal(modal.id); }); document.addEventListener("keydown", event => { if (event.key === "Escape") document.querySelectorAll(".modal.open").forEach(modal => closeModal(modal.id)); });
 byId("postForm").addEventListener("submit", async event => { event.preventDefault(); const cardId = byId("postCard").value; if (!cardId) return; const button = event.submitter; button.disabled = true; try { await publishSticker(cardId, byId("postCaption").value); byId("postCaption").value = ""; } catch (error) { alert(error.message); } finally { button.disabled = false; } });
 byId("friendForm").addEventListener("submit", async event => { event.preventDefault(); const handle = byId("friendHandle").value.trim().replace(/^@/, "").toLowerCase(); if (!handle) return; const button = event.submitter; button.disabled = true; const { error } = await supabase.rpc("send_friend_request", { p_handle: handle }); button.disabled = false; if (error) return alert(error.message); byId("friendHandle").value = ""; await refreshSocial(); });
+byId("handleForm").addEventListener("submit", async event => { event.preventDefault(); const handle = normalizeHandle(byId("profileHandle").value), button = event.submitter, message = byId("handleMessage"); message.style.color = "var(--muted)"; if (!validHandle(handle)) { message.style.color = "#ff9a8b"; message.textContent = "Use de 3 a 24 letras minúsculas, números ou _."; return; } button.disabled = true; button.textContent = "Salvando…"; const { error } = await supabase.rpc("update_my_handle", { p_handle: handle }); button.disabled = false; button.textContent = "Salvar ID"; if (error) { message.style.color = "#ff9a8b"; message.textContent = error.message; return; } message.style.color = "#5fe0a1"; message.textContent = "ID atualizado."; await refreshSocial(); });
 byId("postPickerButton").onclick = () => openStickerPicker("post"); byId("offeredPickerButton").onclick = () => openStickerPicker("offered"); byId("requestedPickerButton").onclick = () => openStickerPicker("requested");
 byId("confirmDeletePost").onclick = deleteOwnPost;
 byId("tradeFriend").addEventListener("change", async event => { const friendId = event.target.value; friendOwned = {}; byId("offeredCard").value = ""; byId("requestedCard").value = ""; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); if (!friendId) return; byId("offeredPickerButton").disabled = true; byId("requestedPickerButton").disabled = true; byId("offeredPickerButton").textContent = "Carregando coleção…"; byId("requestedPickerButton").textContent = "Carregando coleção…"; const { data, error } = await supabase.from("album_progress").select("owned").eq("user_id", friendId).single(); if (error) { event.target.value = ""; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); return alert(error.message); } friendOwned = data.owned || {}; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); });
