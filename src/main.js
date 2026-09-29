@@ -114,7 +114,18 @@ function renderAlbum() {
   const grid = byId("albumGrid");
   const filtered = cards.filter(card => { const owned = Boolean(state.owned[card.id]); if (["secret", "supersecret"].includes(card.rarity) && !owned) return false; return (currentFilter === "all" || (currentFilter === "owned" && owned) || (currentFilter === "missing" && !owned)) && (currentRarity === "all" || card.rarity === currentRarity); });
   grid.innerHTML = filtered.length ? "" : '<div class="empty">Nenhuma figurinha combina com este filtro. As secretas só surgem quando descobertas.</div>';
-  filtered.forEach(card => { const r = rarity(card.rarity), owned = Boolean(state.owned[card.id]), button = document.createElement("button"); button.className = `sticker rarity-${card.rarity} ${owned ? "" : "locked"}`; button.style.setProperty("--rarity", r.color); button.innerHTML = `<span class="sticker-badge">${r.name}</span>${state.owned[card.id] > 1 ? `<span class="dupe">+${state.owned[card.id] - 1}</span>` : ""}<img class="sticker-visual sticker-photo" src="${card.image}" alt="" loading="lazy" decoding="async"><span class="sticker-info"><span class="sticker-name">${owned ? card.name : "Figurinha oculta"}</span><span class="sticker-rarity">${r.name}</span></span>`; button.disabled = !owned; button.setAttribute("aria-label", owned ? `${card.name}, ${r.name}` : `Figurinha ${card.id} ainda não encontrada`); if (owned) button.onclick = () => showDetail(card); grid.appendChild(button); });
+  filtered.forEach(card => {
+    const r = rarity(card.rarity), owned = Boolean(state.owned[card.id]), button = document.createElement("button");
+    button.className = `sticker rarity-${card.rarity} ${owned ? "" : "locked"}`;
+    button.style.setProperty("--rarity", r.color);
+    button.innerHTML = owned
+      ? `<span class="sticker-badge">${r.name}</span>${state.owned[card.id] > 1 ? `<span class="dupe">+${state.owned[card.id] - 1}</span>` : ""}<img class="sticker-visual sticker-photo" src="${card.image}" alt="" loading="lazy" decoding="async"><span class="sticker-info"><span class="sticker-name">${card.name}</span><span class="sticker-rarity">${r.name}</span></span>`
+      : `<span class="sticker-memory-back" aria-hidden="true">PV</span><span class="sticker-info sticker-locked-info"><span class="sticker-name">Figurinha não descoberta</span></span>`;
+    button.disabled = !owned;
+    button.setAttribute("aria-label", owned ? `${card.name}, ${r.name}` : "Figurinha ainda não descoberta");
+    if (owned) button.onclick = () => showDetail(card);
+    grid.appendChild(button);
+  });
 }
 function renderOdds() {
   const rows = (items, metric, max, formatter) => items.map(r => `<div class="prob-row"><span class="rarity-key"><i class="dot" style="--c:${r.color}"></i>${r.name}</span><span class="bar"><i style="--c:${r.color};--w:${(r[metric] / max) * 100}%"></i></span><b>${formatter(r[metric])}</b></div>`).join("");
