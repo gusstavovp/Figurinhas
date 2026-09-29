@@ -307,8 +307,10 @@ function showCommunityError(error) {
 function communityUserRow(user, position = null) {
   const accent = user.accent_color || "#7c5cff", avatar = profileImage(user), open = user.can_view_collection;
   const completionPrimary = Boolean(position) && rankSort === "completion";
-  const score = `<b class="sticker-total">${Number(user.sticker_count || 0)}</b><small class="completion-percent">${Number(user.completion_percent || 0).toLocaleString("pt-BR")}% completo</small>`;
-  return `<button class="${position ? `rank-row${completionPrimary ? " completion-ranking" : ""}` : "user-result"}" type="button" data-view-user="${user.user_id}" style="--accent:${accent}">${position ? `<span class="rank-place">${position <= 3 ? ["🥇", "🥈", "🥉"][position - 1] : `#${position}`}</span>` : '<span class="rank-place">⌕</span>'}<img class="profile-avatar" src="${avatar}" alt=""><span><b>${escapeHtml(user.display_name)}</b><small>@${escapeHtml(user.handle)}${user.is_friend ? " · seu amigo" : ""}</small><span class="status-pill ${open ? "open" : "locked"}">${open ? "Coleção visível" : "Coleção protegida"}</span></span><span class="rank-score">${score}</span></button>`;
+  const score = completionPrimary
+    ? `<b>${Number(user.completion_percent || 0).toLocaleString("pt-BR")}%</b><small>${Number(user.sticker_count || 0)} figurinhas</small>`
+    : `<b>${Number(user.sticker_count || 0)}</b><small>${Number(user.completion_percent || 0).toLocaleString("pt-BR")}% completo</small>`;
+  return `<button class="${position ? "rank-row" : "user-result"}" type="button" data-view-user="${user.user_id}" style="--accent:${accent}">${position ? `<span class="rank-place">${position <= 3 ? ["🥇", "🥈", "🥉"][position - 1] : `#${position}`}</span>` : '<span class="rank-place">⌕</span>'}<img class="profile-avatar" src="${avatar}" alt=""><span><b>${escapeHtml(user.display_name)}</b><small>@${escapeHtml(user.handle)}${user.is_friend ? " · seu amigo" : ""}</small><span class="status-pill ${open ? "open" : "locked"}">${open ? "Coleção visível" : "Coleção protegida"}</span></span><span class="rank-score">${score}</span></button>`;
 }
 async function loadLeaderboard(force = false) {
   if (communityLoaded && !force) return;
