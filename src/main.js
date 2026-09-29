@@ -85,7 +85,9 @@ const missions = [
   { id: "duel", icon: "⚔️", title: "Duelo de raridades", description: "Escolha a mais rara em cinco duelos. Um erro encerra a rodada.", reward: "+9 🧃" }
 ];
 const state = { owned: {}, juice: 0, lastOpened: null, packs: 0, activities: {}, activityDate: null, lastRouletteSpin: null };
-let currentFilter = "all", currentRarity = "all", registerMode = false, dailyAvailable = false, gameTimer = null, targetTimer = null;
+const recoveryParams = new URLSearchParams(location.search);
+const recoveryHash = new URLSearchParams(location.hash.slice(1));
+let currentFilter = "all", currentRarity = "all", registerMode = false, passwordRecoveryMode = recoveryParams.get("recovery") === "1" || recoveryHash.get("type") === "recovery", dailyAvailable = false, gameTimer = null, targetTimer = null;
 let currentUser = null, socialProfile = null, friends = [], friendships = [], trades = [], currentDetailCard = null, friendOwned = {}, postPendingDelete = null, tradePartnerReady = false, tradeLoadVersion = 0;
 let rankSort = "stickers", communityLoaded = false, viewedUserId = null;
 const byId = id => document.getElementById(id);
@@ -198,7 +200,6 @@ function setActiveView(view, updateHash = true) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 const ownedCards = () => cards.filter(card => (state.owned[card.id] || 0) > 0);
-const optionForCard = (card, withCount = false) => `<option value="${card.id}">#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}${withCount ? ` (${state.owned[card.id]}x)` : ""}</option>`;
 function renderOwnedOptions() {
   const owned = ownedCards();
   if (byId("postCard").value && !state.owned[byId("postCard").value]) byId("postCard").value = "";
@@ -211,6 +212,12 @@ function updatePostPickerTrigger() {
   button.disabled = !available; button.classList.remove("selected");
   if (!available) { button.textContent = "Abra um pacote primeiro"; return; }
   if (!card || !state.owned[card.id]) { input.value = ""; button.textContent = "Escolher figurinha"; return; }
+  const r = rarity(card.rarity); button.classList.add("selected"); button.style.setProperty("--rarity", r.color); button.innerHTML = `<img src="${card.image}" alt=""><span><b>#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}</b><small>${r.name} · Você tem ${state.owned[card.id]}x</small></span>`;
+}
+function updateAvatarPickerTrigger() {
+  const input = byId("profileAvatar"), button = byId("profileAvatarButton"), card = cards.find(item => item.id === Number(input.value));
+  button.classList.remove("selected");
+  if (!card || !state.owned[card.id]) { input.value = ""; button.textContent = "Sem avatar de figurinha"; return; }
   const r = rarity(card.rarity); button.classList.add("selected"); button.style.setProperty("--rarity", r.color); button.innerHTML = `<img src="${card.image}" alt=""><span><b>#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}</b><small>${r.name} · Você tem ${state.owned[card.id]}x</small></span>`;
 }
 function tradePickerMeta(type, card) {
@@ -238,12 +245,13 @@ function updateTradePickerTrigger(type) {
   updateTradeSubmitState();
 }
 function openStickerPicker(type) {
-  const post = type === "post", offered = type === "offered", source = post || offered ? state.owned : friendOwned, available = cards.filter(card => (source[card.id] || 0) > 0);
-  if ((!post && !byId("tradeFriend").value) || !available.length) return;
-  byId("tradePickerTitle").textContent = post ? "Qual figurinha você quer publicar?" : offered ? "Qual figurinha você oferece?" : "Qual figurinha você quer receber?";
-  byId("tradePickerHelp").textContent = post ? "Escolha uma figurinha da sua coleção para mostrar no Feed." : offered ? "Veja se seu amigo já possui cada opção antes de escolher." : "As opções abaixo pertencem ao seu amigo. Destacamos as que ainda faltam no seu álbum.";
-  byId("tradePickerGrid").innerHTML = available.map(card => { const r = rarity(card.rarity), counterpartCount = post ? state.owned[card.id] : offered ? (friendOwned[card.id] || 0) : (state.owned[card.id] || 0), status = post ? `Você tem ${state.owned[card.id]}x` : tradePickerMeta(type, card); return `<button class="trade-picker-option" type="button" data-pick-card="${card.id}" style="--rarity:${r.color}" aria-label="#${String(card.id).padStart(3, "0")} ${escapeHtml(card.name)}, ${r.name}, ${status}"><img src="${card.image}" alt=""><span><b>#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}</b><small>${r.name} · ${source[card.id]}x</small><span class="ownership-tag ${counterpartCount ? "" : "missing"}">${status}</span></span></button>`; }).join("");
-  byId("tradePickerGrid").querySelectorAll("[data-pick-card]").forEach(button => button.onclick = () => { byId(post ? "postCard" : offered ? "offeredCard" : "requestedCard").value = button.dataset.pickCard; if (post) updatePostPickerTrigger(); else updateTradePickerTrigger(type); closeModal("tradePickerModal"); });
+  const avatar = type === "avatar", post = type === "post", offered = type === "offered", source = avatar || post || offered ? state.owned : friendOwned, available = cards.filter(card => (source[card.id] || 0) > 0);
+  if ((!avatar && !post && !byId("tradeFriend").value) || (!avatar && !available.length)) return;
+  byId("tradePickerTitle").textContent = avatar ? "Qual figurinha será seu avatar?" : post ? "Qual figurinha você quer publicar?" : offered ? "Qual figurinha você oferece?" : "Qual figurinha você quer receber?";
+  byId("tradePickerHelp").textContent = avatar ? "Escolha uma figurinha da sua coleção. A foto, o número, o nome, a raridade e sua quantidade aparecem em cada opção." : post ? "Escolha uma figurinha da sua coleção para mostrar no Feed." : offered ? "Veja se seu amigo já possui cada opção antes de escolher." : "As opções abaixo pertencem ao seu amigo. Destacamos as que ainda faltam no seu álbum.";
+  const clearAvatar = avatar ? '<button class="trade-picker-option" type="button" data-pick-card="" aria-label="Remover avatar de figurinha"><span class="avatar-empty-icon">✦</span><span><b>Sem avatar de figurinha</b><small>Usar imagem padrão</small><span class="ownership-tag">Selecionar</span></span></button>' : "";
+  byId("tradePickerGrid").innerHTML = clearAvatar + available.map(card => { const r = rarity(card.rarity), counterpartCount = avatar || post ? state.owned[card.id] : offered ? (friendOwned[card.id] || 0) : (state.owned[card.id] || 0), status = avatar || post ? `Você tem ${state.owned[card.id]}x` : tradePickerMeta(type, card); return `<button class="trade-picker-option" type="button" data-pick-card="${card.id}" style="--rarity:${r.color}" aria-label="#${String(card.id).padStart(3, "0")} ${escapeHtml(card.name)}, ${r.name}, ${status}"><img src="${card.image}" alt=""><span><b>#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}</b><small>${r.name} · ${source[card.id]}x</small><span class="ownership-tag ${counterpartCount ? "" : "missing"}">${status}</span></span></button>`; }).join("");
+  byId("tradePickerGrid").querySelectorAll("[data-pick-card]").forEach(button => button.onclick = () => { byId(avatar ? "profileAvatar" : post ? "postCard" : offered ? "offeredCard" : "requestedCard").value = button.dataset.pickCard; if (avatar) { updateAvatarPickerTrigger(); updateProfilePreview(); } else if (post) updatePostPickerTrigger(); else updateTradePickerTrigger(type); closeModal("tradePickerModal"); });
   openModal("tradePickerModal");
 }
 function renderSocialProfile() {
@@ -272,9 +280,8 @@ function renderProfileSettings() {
   if (active !== byId("profileAccent")) byId("profileAccent").value = socialProfile.accent_color || "#b277ff";
   byId("profileVisibility").value = socialProfile.collection_visibility || "public";
   byId("profileRanking").checked = socialProfile.show_in_rankings !== false;
-  const avatarSelect = byId("profileAvatar"), selected = String(socialProfile.avatar_card || "");
-  avatarSelect.innerHTML = '<option value="">Sem avatar</option>' + ownedCards().map(card => optionForCard(card)).join("");
-  avatarSelect.value = selected;
+  byId("profileAvatar").value = String(socialProfile.avatar_card || "");
+  updateAvatarPickerTrigger();
   const preview = byId("profilePreview"), accent = socialProfile.accent_color || "#b277ff";
   preview.style.setProperty("--accent", accent);
   byId("profileAvatarPreview").src = profileImage(socialProfile, state.owned);
@@ -469,10 +476,49 @@ async function loadProfile(user) {
   byId("accountEmail").textContent = profile.name || profile.email; byId("authGate").classList.add("ready"); renderOdds(); renderAll();
   try { await refreshSocial(); if (location.hash === "#community") await loadLeaderboard(); } catch (error) { byId("feedList").innerHTML = `<div class="empty-small">Não foi possível carregar a área social: ${escapeHtml(error.message)}</div>`; }
 }
-async function handleAuth(event) {
-  event.preventDefault(); const email = byId("authEmail").value.trim().toLowerCase(), password = byId("authPassword").value, name = byId("authName").value.trim(), handle = normalizeHandle(byId("authHandle").value), button = byId("authSubmit"); let keepDisabled = false; byId("authError").textContent = ""; button.disabled = true; button.textContent = registerMode ? "Criando conta…" : "Entrando…";
+function showPasswordRecoveryForm() {
+  passwordRecoveryMode = true; registerMode = false;
+  byId("authGate").classList.remove("ready");
+  byId("authTitle").textContent = "Criar nova senha";
+  byId("authMessage").textContent = "Digite e confirme a nova senha da sua conta.";
+  byId("nameField").style.display = "none"; byId("handleField").style.display = "none"; byId("emailField").style.display = "none";
+  byId("confirmPasswordField").style.display = "block";
+  byId("authName").required = false; byId("authHandle").required = false; byId("authEmail").required = false; byId("authPasswordConfirm").required = true;
+  byId("passwordLabel").textContent = "Nova senha"; byId("authPassword").autocomplete = "new-password";
+  byId("authPassword").value = ""; byId("authPasswordConfirm").value = "";
+  byId("authSubmit").disabled = false; byId("authSubmit").textContent = "Salvar nova senha";
+  byId("authToggle").style.display = "none"; byId("forgotPassword").style.display = "none"; byId("authError").textContent = "";
+}
+async function requestPasswordReset() {
+  const email = byId("authEmail").value.trim().toLowerCase(), button = byId("forgotPassword"), message = byId("authError");
+  message.style.color = "#ff9a8b"; message.textContent = "";
+  if (!email || !byId("authEmail").checkValidity()) { message.textContent = "Digite seu e-mail acima para recuperar a senha."; byId("authEmail").focus(); return; }
+  const attemptKey = `album_recovery_attempt:${email}`, lastAttempt = Number(localStorage.getItem(attemptKey) || 0), waitSeconds = Math.ceil((60000 - (Date.now() - lastAttempt)) / 1000);
+  if (waitSeconds > 0) { message.textContent = `Aguarde ${waitSeconds} segundos antes de pedir outro e-mail.`; return; }
+  button.disabled = true; button.textContent = "Enviando…";
   try {
-    if (registerMode) {
+    localStorage.setItem(attemptKey, String(Date.now()));
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/?recovery=1` });
+    if (error) throw error;
+    message.style.color = "#5fe0a1";
+    message.textContent = "Se esse e-mail estiver cadastrado, você receberá um link para criar uma nova senha. Verifique também o spam.";
+  } catch (error) {
+    const rawMessage = error?.message || "Não foi possível enviar o e-mail.";
+    message.textContent = /rate limit|too many requests|email rate/i.test(rawMessage) ? "Muitas solicitações foram feitas. Aguarde alguns minutos e tente novamente." : rawMessage;
+  } finally { button.disabled = false; button.textContent = "Esqueci minha senha"; }
+}
+async function handleAuth(event) {
+  event.preventDefault(); const email = byId("authEmail").value.trim().toLowerCase(), password = byId("authPassword").value, name = byId("authName").value.trim(), handle = normalizeHandle(byId("authHandle").value), button = byId("authSubmit"); let keepDisabled = false; byId("authError").textContent = ""; button.disabled = true; button.textContent = passwordRecoveryMode ? "Salvando…" : registerMode ? "Criando conta…" : "Entrando…";
+  try {
+    if (passwordRecoveryMode) {
+      if (password !== byId("authPasswordConfirm").value) throw new Error("As duas senhas precisam ser iguais.");
+      const { data, error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      passwordRecoveryMode = false; history.replaceState(null, "", location.pathname);
+      byId("authError").style.color = "#5fe0a1"; byId("authError").textContent = "Senha atualizada com sucesso. Abrindo seu álbum…";
+      setTimeout(() => loadProfile(data.user).catch(showSessionError), 700);
+      return;
+    } else if (registerMode) {
       if (!validHandle(handle)) throw new Error("Escolha um ID com 3 a 24 letras minúsculas, números ou _.");
       const attemptKey = `album_signup_attempt:${email}`, lastAttempt = Number(localStorage.getItem(attemptKey) || 0), waitSeconds = Math.ceil((signupCooldownMs - (Date.now() - lastAttempt)) / 1000);
       if (waitSeconds > 0) throw new Error(`Aguarde ${waitSeconds} segundos antes de solicitar outro cadastro para este e-mail.`);
@@ -490,7 +536,7 @@ async function handleAuth(event) {
     const rawMessage = error?.message || "Não foi possível concluir o cadastro.";
     byId("authError").style.color = "#ff9a8b";
     byId("authError").textContent = /rate limit|too many requests|email rate/i.test(rawMessage) ? "Muitas solicitações de e-mail foram feitas. Aguarde alguns minutos e tente novamente apenas uma vez." : rawMessage;
-  } finally { button.disabled = keepDisabled; button.textContent = keepDisabled ? "E-mail enviado" : registerMode ? "Criar conta" : "Entrar"; }
+  } finally { button.disabled = keepDisabled; button.textContent = keepDisabled ? "E-mail enviado" : passwordRecoveryMode ? "Salvar nova senha" : registerMode ? "Criar conta" : "Entrar"; }
 }
 function toggleAuth() {
   registerMode = !registerMode;
@@ -498,13 +544,17 @@ function toggleAuth() {
   byId("authMessage").textContent = registerMode ? "Escolha seu nome e um ID público único." : "Seu progresso fica salvo na sua conta.";
   byId("nameField").style.display = registerMode ? "block" : "none";
   byId("handleField").style.display = registerMode ? "block" : "none";
+  byId("emailField").style.display = "block"; byId("confirmPasswordField").style.display = "none";
   byId("authName").required = registerMode;
   byId("authHandle").required = registerMode;
+  byId("authEmail").required = true; byId("authPasswordConfirm").required = false;
+  byId("passwordLabel").textContent = "Senha";
   byId("authPassword").autocomplete = registerMode ? "new-password" : "current-password";
-  ["authName", "authHandle", "authEmail", "authPassword"].forEach(id => { byId(id).value = ""; });
+  ["authName", "authHandle", "authEmail", "authPassword", "authPasswordConfirm"].forEach(id => { byId(id).value = ""; });
   byId("authSubmit").disabled = false;
   byId("authSubmit").textContent = registerMode ? "Criar conta" : "Entrar";
   byId("authToggle").textContent = registerMode ? "Já tenho uma conta" : "Ainda não tenho conta";
+  byId("authToggle").style.display = "block"; byId("forgotPassword").style.display = registerMode ? "none" : "block";
   byId("authError").textContent = "";
 }
 function showSessionError(error) {
@@ -522,13 +572,15 @@ async function initialize() {
     return;
   }
   supabase.auth.onAuthStateChange((event, session) => {
-    if (event === "SIGNED_IN" && session) setTimeout(() => loadProfile(session.user).catch(showSessionError), 0);
+    if (event === "PASSWORD_RECOVERY") setTimeout(showPasswordRecoveryForm, 0);
+    if (event === "SIGNED_IN" && session && !passwordRecoveryMode) setTimeout(() => loadProfile(session.user).catch(showSessionError), 0);
     if (event === "SIGNED_OUT") location.reload();
   });
   try {
     const { data: { session }, error } = await supabase.auth.getSession();
     if (error) throw error;
-    if (session) await loadProfile(session.user);
+    if (session && passwordRecoveryMode) showPasswordRecoveryForm();
+    else if (session) await loadProfile(session.user);
     else byId("accountEmail").textContent = "Entre para jogar";
   } catch (error) {
     showSessionError(error);
@@ -550,7 +602,7 @@ byId("profileForm").addEventListener("submit", async event => {
   message.style.color = "#5fe0a1"; message.textContent = "Perfil e privacidade atualizados."; communityLoaded = false; await refreshSocial(); byId("accountEmail").textContent = socialProfile.display_name; await loadLeaderboard(true); if (viewedUserId === currentUser.id) await viewCommunityProfile(currentUser.id);
 });
 const updateProfilePreview = () => { const accent = byId("profileAccent").value || "#b277ff", avatar = cards.find(card => card.id === Number(byId("profileAvatar").value)); byId("profilePreview").style.setProperty("--accent", accent); byId("profileAvatarPreview").src = avatar?.image || profileImage(socialProfile, state.owned); byId("profilePreviewName").textContent = byId("profileName").value || "Seu perfil"; byId("profilePreviewHandle").textContent = `@${normalizeHandle(byId("profileHandle").value) || "seu_id"}`; byId("profilePreviewBio").textContent = byId("profileBio").value || "Conte algo sobre você."; };
-["profileName", "profileHandle", "profileBio", "profileAccent", "profileAvatar"].forEach(id => byId(id).addEventListener("input", updateProfilePreview));
+["profileName", "profileHandle", "profileBio", "profileAccent"].forEach(id => byId(id).addEventListener("input", updateProfilePreview));
 document.querySelectorAll(".filter[data-filter]").forEach(button => button.onclick = () => { currentFilter = button.dataset.filter; document.querySelectorAll(".filter[data-filter]").forEach(item => item.classList.toggle("active", item === button)); renderAlbum(); });
 byId("rarityFilter").onchange = event => { currentRarity = event.target.value; renderAlbum(); }; byId("openPack").onclick = openDaily; byId("buyMystery").onclick = buyMystery; byId("spinRoulette").onclick = spinRoulette; byId("showRules").onclick = () => openModal("rulesModal");
 byId("openClicker").onclick = openClicker;
@@ -566,7 +618,7 @@ window.addEventListener("message", event => {
 document.querySelectorAll("[data-close]").forEach(button => button.onclick = () => closeModal(button.dataset.close)); document.querySelectorAll(".modal").forEach(modal => modal.onclick = event => { if (event.target === modal) closeModal(modal.id); }); document.addEventListener("keydown", event => { if (event.key === "Escape") document.querySelectorAll(".modal.open").forEach(modal => closeModal(modal.id)); });
 byId("postForm").addEventListener("submit", async event => { event.preventDefault(); const cardId = byId("postCard").value; if (!cardId) return; const button = event.submitter; button.disabled = true; try { await publishSticker(cardId, byId("postCaption").value); byId("postCaption").value = ""; } catch (error) { alert(error.message); } finally { button.disabled = false; } });
 byId("friendForm").addEventListener("submit", async event => { event.preventDefault(); const handle = byId("friendHandle").value.trim().replace(/^@/, "").toLowerCase(); if (!handle) return; const button = event.submitter; button.disabled = true; const { error } = await supabase.rpc("send_friend_request", { p_handle: handle }); button.disabled = false; if (error) return alert(error.message); byId("friendHandle").value = ""; await refreshSocial(); });
-byId("postPickerButton").onclick = () => openStickerPicker("post"); byId("offeredPickerButton").onclick = () => openStickerPicker("offered"); byId("requestedPickerButton").onclick = () => openStickerPicker("requested");
+byId("postPickerButton").onclick = () => openStickerPicker("post"); byId("profileAvatarButton").onclick = () => openStickerPicker("avatar"); byId("offeredPickerButton").onclick = () => openStickerPicker("offered"); byId("requestedPickerButton").onclick = () => openStickerPicker("requested");
 byId("confirmDeletePost").onclick = deleteOwnPost;
 byId("tradeFriend").addEventListener("change", async event => {
   const friendId = event.target.value, requestVersion = ++tradeLoadVersion;
@@ -602,5 +654,5 @@ byId("tradeForm").addEventListener("submit", async event => {
 });
 byId("detailPost").onclick = async () => { if (!currentDetailCard) return; byId("detailPost").disabled = true; try { await publishSticker(currentDetailCard.id); closeModal("detailModal"); setActiveView("social"); } catch (error) { alert(error.message); } finally { byId("detailPost").disabled = false; } };
 byId("detailFeature").onclick = async () => { if (!currentDetailCard) return; byId("detailFeature").disabled = true; try { await featureSticker(currentDetailCard.id); closeModal("detailModal"); } catch (error) { alert(error.message); } finally { byId("detailFeature").disabled = false; } };
-byId("authForm").addEventListener("submit", handleAuth); byId("authToggle").onclick = toggleAuth; byId("logoutButton").onclick = async event => { event.preventDefault(); await supabase?.auth.signOut(); };
+byId("authForm").addEventListener("submit", handleAuth); byId("authToggle").onclick = toggleAuth; byId("forgotPassword").onclick = requestPasswordReset; byId("logoutButton").onclick = async event => { event.preventDefault(); await supabase?.auth.signOut(); };
 setActiveView(location.hash.slice(1), false); renderThemePacks(); renderOdds(); renderAll(); initialize();
