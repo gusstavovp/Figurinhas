@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { createBeanHub } from './beans.js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://umayamlvxcdccmkpghmg.supabase.co";
 const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "sb_publishable_R5rN_XnQ7u_B-bv900ZY1g_K6V_wIIl";
@@ -101,6 +102,7 @@ let currentFilter = "all", currentRarity = "all", registerMode = false, password
 let currentUser = null, socialProfile = null, friends = [], friendships = [], trades = [], currentDetailCard = null, friendOwned = {}, postPendingDelete = null, tradePartnerReady = false, tradeLoadVersion = 0;
 let rankSort = "stickers", communityLoaded = false, viewedUserId = null;
 let pendingPackReveal = null, packOpenClicks = 0, packRevealTimer = null;
+let beanHub = null;
 const byId = id => document.getElementById(id);
 const clickerOrigin = "https://suco-de-caju-clicker.vercel.app";
 const rarity = id => rarities.find(r => r.id === id);
@@ -249,6 +251,7 @@ function setActiveView(view, updateHash = true) {
   document.querySelectorAll("[data-jump]").forEach(button => { const active = button.dataset.jump === validView; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); });
   if (updateHash) history.replaceState(null, "", `#${validView}`);
   if (validView === "community" && currentUser) loadLeaderboard().catch(showCommunityError);
+  if (validView === "missions" && currentUser) beanHub?.refresh();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 const ownedCards = () => cards.filter(card => (state.owned[card.id] || 0) > 0);
@@ -530,6 +533,7 @@ async function loadProfile(user) {
   if (profileError) throw profileError; if (progressError) throw progressError;
   state.owned = progress.owned || {}; state.juice = progress.coins || 0; state.lastOpened = progress.last_daily_pack; state.packs = progress.packs_opened || 0; state.activities = progress.daily_activity_date === todayKey() ? (progress.daily_activities || {}) : {}; state.activityDate = progress.daily_activity_date; state.lastRouletteSpin = progress.last_roulette_spin; dailyAvailable = progress.last_daily_pack !== todayKey();
   byId("accountEmail").textContent = profile.name || profile.email; byId("authGate").classList.add("ready"); renderOdds(); renderAll();
+  beanHub?.refresh();
   try { await refreshSocial(); if (location.hash === "#community") await loadLeaderboard(); } catch (error) { byId("feedList").innerHTML = `<div class="empty-small">Não foi possível carregar a área social: ${escapeHtml(error.message)}</div>`; }
 }
 function showPasswordRecoveryForm() {
@@ -644,6 +648,14 @@ async function initialize() {
 }
 
 document.querySelectorAll("[data-jump]").forEach(button => button.onclick = () => setActiveView(button.dataset.jump));
+beanHub = createBeanHub({client:supabase,cards,rarities,getUser:()=>currentUser,onChanged:async kind=>{
+  if (kind !== 'game') {
+    const {data,error}=await supabase.from('album_progress').select('owned,coins').eq('user_id',currentUser.id).single();
+    if(error) throw error;
+    state.owned=data.owned;state.juice=data.coins;renderAll();
+    byId('clickerFrame').contentWindow?.postMessage({type:'album-economy-refresh'},clickerOrigin);
+  }
+}});
 document.querySelectorAll("[data-rank-sort]").forEach(button => button.onclick = async () => { rankSort = button.dataset.rankSort; document.querySelectorAll("[data-rank-sort]").forEach(item => item.classList.toggle("active", item === button)); communityLoaded = false; try { await loadLeaderboard(true); } catch (error) { showCommunityError(error); } });
 byId("userSearchForm").addEventListener("submit", async event => { event.preventDefault(); const query = byId("userSearchInput").value.trim(); if (!query) return; const button = event.submitter; button.disabled = true; try { await searchCommunityUsers(query); } catch (error) { byId("userSearchResults").innerHTML = `<div class="empty-small">${escapeHtml(error.message)}</div>`; } finally { button.disabled = false; } });
 byId("openProfileSettings").onclick = () => { setActiveView("community"); setTimeout(() => byId("profileName").focus(), 250); };
@@ -664,7 +676,8 @@ byId("rarityFilter").onchange = event => { currentRarity = event.target.value; r
 byId("openClicker").onclick = openClicker;
 byId("clickerFrame").addEventListener("load", sendClickerAuth);
 window.addEventListener("message", event => {
-  if (event.origin !== clickerOrigin) return;
+  if (event.origin !== clickerOrigin || event.source !== byId('clickerFrame').contentWindow) return;
+  if (event.data?.type === 'clicker-open-beans') { closeModal('clickerModal'); setActiveView('missions'); setTimeout(()=>byId('beanHub').scrollIntoView({behavior:'smooth',block:'start'}),150); }
   if (event.data?.type === "clicker-ready") sendClickerAuth();
   if (event.data?.type === "clicker-reward" && Number.isFinite(Number(event.data.coins))) {
     state.juice = Number(event.data.coins);
