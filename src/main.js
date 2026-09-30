@@ -61,6 +61,16 @@ const packThemes = [
   { id: "routine", name: "Profissões & rotina", icon: "🛠️", color: "#54ddff", accent: "#175b78", featured: 15, description: "Trabalhos, estudos, veículos e vida cotidiana.", cardIds: [15,25,30,31,34,43,47,52,70,82,83,89,90,91] },
   { id: "special", name: "Estilos & especiais", icon: "✨", color: "#ff6eb5", accent: "#6d225e", featured: 1, description: "Amigos, emoções, estilos e versões inesperadas.", cardIds: [1,2,3,16,28,29,32,33,36,37,40,41,42,44,46,50,51,56,57,58,59,77,78,79,80,81,92,93,94,96,97,98,99,100,101,105,106,107,108,110] }
 ];
+const rarityPackSkins = {
+  common: { icon: "PV", featured: 3, subtitle: "Edição Clássica" },
+  uncommon: { icon: "✦", featured: 7, subtitle: "Edição Verde" },
+  rare: { icon: "◆", featured: 10, subtitle: "Edição Azul" },
+  epic: { icon: "⚡", featured: 1, subtitle: "Edição Épica" },
+  mythic: { icon: "☄", featured: 13, subtitle: "Edição Mítica" },
+  legendary: { icon: "♛", featured: 4, subtitle: "Edição Dourada" },
+  secret: { icon: "◉", featured: 5, subtitle: "Arquivo Secreto" },
+  supersecret: { icon: "♱", featured: 111, subtitle: "Anjo Caído" }
+};
 const themePackSize = theme => theme.cardIds.length <= 10 ? 3 : 5;
 const icons = ["🐺", "🎨", "6️⃣", "🧃", "🥤", "🍛", "🍚", "🐻", "🐤", "🦊", "🐰", "🎭", "🤖", "🩰", "📐", "🌈", "🦇", "⚔️", "🦸", "⚡", "🃏", "♦️", "🎲", "💚", "🌙", "🎣", "🚗", "🤝", "😎", "🍳", "👮", "🦜", "🩴", "⌚", "🥩", "🎤", "🐴", "🟣", "🎮", "🎬", "💘", "🤡", "⚽", "🔊", "🕹️", "🍔", "🏋️", "⛏️", "🧙", "🧒", "👸", "👴", "💗", "🔥", "🧽", "👨", "✨", "🌵", "💰", "🌊", "🐉", "🏰", "👦", "🧪", "🦑", "⭐", "⚡", "🍓", "🐇", "🏍️", "👣", "🐊", "🧜", "🧢", "🔥", "🌳", "💇", "😎", "🖤", "🎨", "🧔", "🚌", "🚍", "🎙️", "👁️", "🍥", "🌸", "🥷", "📚", "🔧", "💻", "🕴️", "💎", "👶", "⛓️", "🌑", "☀️", "😍", "😡", "😁", "🤤", "🪄", "🥪", "🐕", "💞", "🤪", "🦣", "☝️", "👻", "❓", "👁️"];
 const cards = cardNames.map((name, index) => ({
@@ -90,6 +100,7 @@ const recoveryHash = new URLSearchParams(location.hash.slice(1));
 let currentFilter = "all", currentRarity = "all", registerMode = false, passwordRecoveryMode = recoveryParams.get("recovery") === "1" || recoveryHash.get("type") === "recovery", dailyAvailable = false, gameTimer = null, targetTimer = null;
 let currentUser = null, socialProfile = null, friends = [], friendships = [], trades = [], currentDetailCard = null, friendOwned = {}, postPendingDelete = null, tradePartnerReady = false, tradeLoadVersion = 0;
 let rankSort = "stickers", communityLoaded = false, viewedUserId = null;
+let pendingPackReveal = null, packOpenClicks = 0, packRevealTimer = null;
 const byId = id => document.getElementById(id);
 const clickerOrigin = "https://suco-de-caju-clicker.vercel.app";
 const rarity = id => rarities.find(r => r.id === id);
@@ -149,8 +160,8 @@ function renderRoulette() {
   byId("rouletteStatus").textContent = available ? "Uma tentativa grátis por dia." : "Volte amanhã para girar novamente.";
 }
 function renderAll() { renderStats(); renderAlbum(); updateDaily(); renderMissions(); renderRoulette(); renderOwnedOptions(); }
-function openModal(id) { byId(id).classList.add("open"); byId(id).querySelector(".close").focus(); document.body.style.overflow = "hidden"; }
-function closeModal(id) { if (id === "gameModal") { if (gameTimer) clearInterval(gameTimer); if (targetTimer) clearInterval(targetTimer); } if (id === "deletePostModal") postPendingDelete = null; if (id === "clickerModal") byId("clickerFrame").src = "about:blank"; gameTimer = null; targetTimer = null; byId(id).classList.remove("open"); document.body.style.overflow = ""; }
+function openModal(id) { const modal = byId(id); modal.classList.add("open"); modal.querySelector(".close, [data-pack-tap]")?.focus(); document.body.style.overflow = "hidden"; }
+function closeModal(id) { if (id === "gameModal") { if (gameTimer) clearInterval(gameTimer); if (targetTimer) clearInterval(targetTimer); } if (id === "deletePostModal") postPendingDelete = null; if (id === "clickerModal") byId("clickerFrame").src = "about:blank"; if (id === "packOpeningModal" && packRevealTimer) clearTimeout(packRevealTimer); gameTimer = null; targetTimer = null; byId(id).classList.remove("open"); document.body.style.overflow = ""; }
 async function sendClickerAuth() {
   const frame = byId("clickerFrame");
   if (!frame?.contentWindow || !supabase) return;
@@ -164,13 +175,43 @@ function openClicker() {
 }
 function showDetail(card) { currentDetailCard = card; const r = rarity(card.rarity), icon = byId("detailIcon"); icon.className = `detail-icon rarity-${card.rarity}`; icon.style.setProperty("--rarity", r.color); icon.innerHTML = `<img src="${card.image}" alt="${card.name}">`; byId("detailRarity").textContent = `#${String(card.id).padStart(3, "0")} · ${r.name}`; byId("detailRarity").style.color = r.color; byId("detailTitle").textContent = card.name; byId("detailText").textContent = card.description + (state.owned[card.id] > 1 ? ` Você possui ${state.owned[card.id]} cópias.` : ""); openModal("detailModal"); }
 function burst() { const box = byId("confetti"), colors = rarities.map(r => r.color); box.innerHTML = ""; for (let i = 0; i < 42; i++) { const piece = document.createElement("i"); piece.style.cssText = `left:${Math.random() * 100}%;--x:${(Math.random() - .5) * 300}px;--c:${colors[i % colors.length]};animation-delay:${Math.random() * .4}s`; box.appendChild(piece); } setTimeout(() => box.innerHTML = "", 2500); }
-function showPack(data, source) {
-  const payload = typeof data === "string" ? JSON.parse(data) : data; Object.assign(state, payload.state); dailyAvailable = payload.daily_available;
+function revealPackContents(payload, source) {
   const entries = payload.entries.map(entry => ({ card: cards.find(card => card.id === entry.id), isNew: entry.is_new })).filter(entry => entry.card), newCount = entries.filter(entry => entry.isNew).length, wonFallenAngel = entries.some(entry => entry.card.id === FALLEN_ANGEL_ID), packRarity = rarity(payload.pack_tier), visualRarity = wonFallenAngel ? rarity("supersecret") : packRarity;
   const revealModal = byId("revealModal"); revealModal.className = `modal tier-${wonFallenAngel ? "supersecret" : payload.pack_tier}`; revealModal.style.setProperty("--pack-color", visualRarity.color);
   byId("revealTier").textContent = wonFallenAngel ? "✦ A SUPERSECRETA ESCOLHEU VOCÊ ✦" : source === "theme" ? `Pacote temático · ${payload.pack_rarity}` : `${source === "mystery" ? "Pacote misterioso revelou: " : ""}Pacote ${payload.pack_rarity}`; byId("revealTier").style.color = visualRarity.color; byId("revealSummary").textContent = `${newCount ? `${newCount} ${newCount === 1 ? "nova figurinha" : "novas figurinhas"}` : "Somente repetidas"}${payload.reward ? ` · +${payload.reward} 🧃` : ""}`; byId("revealGrid").innerHTML = "";
   entries.forEach(({ card, isNew }, index) => { const r = rarity(card.rarity), element = document.createElement("div"); element.className = `reveal-card rarity-${card.rarity}${isNew ? " is-new" : ""}`; element.style.cssText = `--rarity:${r.color};animation-delay:${index * .08}s`; element.innerHTML = `<img class="reveal-image" src="${card.image}" alt="${card.name}"><div class="reveal-info"><b>${card.name}</b><small>${r.name}</small>${isNew ? '<div class="new-tag">NOVA</div>' : ""}</div>`; byId("revealGrid").appendChild(element); });
   openModal("revealModal"); if (wonFallenAngel || ["mythic", "legendary", "secret"].includes(payload.pack_tier) || newCount >= 3) burst(); renderOdds(); renderAll(); return payload;
+}
+function startPackOpening(payload, source) {
+  const wonFallenAngel = payload.entries.some(entry => entry.id === FALLEN_ANGEL_ID);
+  const tier = wonFallenAngel ? "supersecret" : payload.pack_tier;
+  const packRarity = rarity(tier) || rarity("common"), skin = rarityPackSkins[tier] || rarityPackSkins.common;
+  const card = cards.find(item => item.id === skin.featured) || cards[0];
+  const modal = byId("packOpeningModal"), pack = byId("openingPack");
+  pendingPackReveal = { payload, source }; packOpenClicks = 0;
+  modal.className = `modal pack-opening-modal tier-${tier}`; modal.style.setProperty("--pack-color", packRarity.color);
+  pack.className = `opening-pack pack-skin-${tier}`; pack.style.setProperty("--pack-color", packRarity.color);
+  byId("openingPackImage").src = card.image; byId("openingPackImage").alt = `Pedro Víctor na embalagem ${packRarity.name}`;
+  byId("openingPackIcon").textContent = skin.icon; byId("openingPackSubtitle").textContent = skin.subtitle; byId("openingPackRarity").textContent = packRarity.name;
+  byId("openingPackPrompt").textContent = "Toque no pacote 3 vezes para abrir"; byId("openingPackCounter").textContent = "0 / 3"; byId("openingPackTap").disabled = false;
+  openModal("packOpeningModal");
+}
+function tapOpeningPack() {
+  if (!pendingPackReveal || packOpenClicks >= 3) return;
+  packOpenClicks += 1;
+  const pack = byId("openingPack"), tap = byId("openingPackTap");
+  pack.classList.remove("tap-1", "tap-2"); void pack.offsetWidth;
+  if (packOpenClicks < 3) pack.classList.add(`tap-${packOpenClicks}`);
+  byId("openingPackCounter").textContent = `${packOpenClicks} / 3`;
+  byId("openingPackPrompt").textContent = packOpenClicks === 1 ? "O pacote está tremendo… toque mais 2 vezes" : packOpenClicks === 2 ? "Quase lá! Mais um toque para explodir" : "EXPLODIU!";
+  if (packOpenClicks !== 3) return;
+  tap.disabled = true; pack.classList.add("exploding"); burst();
+  const reveal = pendingPackReveal; pendingPackReveal = null;
+  packRevealTimer = setTimeout(() => { byId("packOpeningModal").classList.remove("open"); document.body.style.overflow = ""; revealPackContents(reveal.payload, reveal.source); packRevealTimer = null; }, 720);
+}
+function showPack(data, source) {
+  const payload = typeof data === "string" ? JSON.parse(data) : data; Object.assign(state, payload.state); dailyAvailable = payload.daily_available; renderAll();
+  startPackOpening(payload, source); return payload;
 }
 async function openPack(source) { const panel = document.querySelector(".pack-panel"); if (source === "daily") panel?.classList.add("opening"); try { const { data, error } = await supabase.rpc("open_album_pack", { p_source: source }); if (error) throw error; return showPack(data, source); } finally { panel?.classList.remove("opening"); } }
 async function openDaily() { if (!dailyAvailable) return; byId("openPack").disabled = true; try { return await openPack("daily"); } catch (error) { alert(error.message); updateDaily(); } }
@@ -630,7 +671,8 @@ window.addEventListener("message", event => {
     renderStats();
   }
 });
-document.querySelectorAll("[data-close]").forEach(button => button.onclick = () => closeModal(button.dataset.close)); document.querySelectorAll(".modal").forEach(modal => modal.onclick = event => { if (event.target === modal) closeModal(modal.id); }); document.addEventListener("keydown", event => { if (event.key === "Escape") document.querySelectorAll(".modal.open").forEach(modal => closeModal(modal.id)); });
+document.querySelectorAll("[data-close]").forEach(button => button.onclick = () => closeModal(button.dataset.close)); document.querySelectorAll(".modal").forEach(modal => modal.onclick = event => { if (event.target === modal && modal.dataset.static !== "true") closeModal(modal.id); }); document.addEventListener("keydown", event => { if (event.key === "Escape") document.querySelectorAll('.modal.open:not([data-static="true"])').forEach(modal => closeModal(modal.id)); });
+byId("openingPackTap").onclick = tapOpeningPack;
 byId("postForm").addEventListener("submit", async event => { event.preventDefault(); const cardId = byId("postCard").value; if (!cardId) return; const button = event.submitter; button.disabled = true; try { await publishSticker(cardId, byId("postCaption").value); byId("postCaption").value = ""; } catch (error) { alert(error.message); } finally { button.disabled = false; } });
 byId("friendForm").addEventListener("submit", async event => { event.preventDefault(); const handle = byId("friendHandle").value.trim().replace(/^@/, "").toLowerCase(); if (!handle) return; const button = event.submitter; button.disabled = true; const { error } = await supabase.rpc("send_friend_request", { p_handle: handle }); button.disabled = false; if (error) return alert(error.message); byId("friendHandle").value = ""; await refreshSocial(); });
 byId("postPickerButton").onclick = () => openStickerPicker("post"); byId("profileAvatarButton").onclick = () => openStickerPicker("avatar"); byId("offeredPickerButton").onclick = () => openStickerPicker("offered"); byId("requestedPickerButton").onclick = () => openStickerPicker("requested");
