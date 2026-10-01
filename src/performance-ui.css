@@ -233,6 +233,239 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
 ::view-transition-old(root) { animation: view-old .18s ease-in both; }
 ::view-transition-new(root) { animation: view-new .32s var(--ui-ease) both; }
 
+/* Formulários do álbum */
+.auth-card form, .profile-form, .composer, .friend-form, .user-search, .trade-builder {
+  --form-bg: rgba(8, 11, 26, .72);
+  --form-border: rgba(255, 255, 255, .11);
+}
+
+.profile-form, .composer, .trade-builder {
+  padding: clamp(16px, 2vw, 22px);
+  border: 1px solid var(--form-border);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(140,108,255,.1), transparent 32%),
+    linear-gradient(145deg, rgba(20,24,48,.92), rgba(10,13,29,.88));
+  box-shadow: inset 0 1px rgba(255,255,255,.035), 0 14px 34px rgba(2,4,14,.18);
+}
+
+.profile-form label, .trade-field, .auth-card form > label,
+.auth-card form > div > label {
+  color: #dce0ec;
+  font-size: .82rem;
+  font-weight: 800;
+  letter-spacing: .015em;
+}
+
+.profile-form label, .trade-field, .auth-card form > div {
+  min-width: 0;
+}
+
+.profile-form input:not([type="checkbox"]):not([type="color"]),
+.profile-form textarea, .profile-form select,
+.composer textarea, .user-search input, .friend-form input,
+.trade-builder select, .auth-card input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 13px;
+  background: linear-gradient(180deg, rgba(8,11,27,.96), rgba(13,16,35,.96));
+  color: #f8f7ff;
+  padding: 12px 14px;
+  font: inherit;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.22);
+  transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease, transform .18s var(--ui-ease);
+}
+
+.profile-form textarea, .composer textarea { min-height: 96px; line-height: 1.5; resize: vertical; }
+.profile-form input::placeholder, .profile-form textarea::placeholder,
+.composer textarea::placeholder, .user-search input::placeholder,
+.friend-form input::placeholder, .auth-card input::placeholder { color: #7f879d; opacity: 1; }
+
+.profile-form input:not([type="checkbox"]):not([type="color"]):hover,
+.profile-form textarea:hover, .profile-form select:hover,
+.composer textarea:hover, .user-search input:hover, .friend-form input:hover,
+.trade-builder select:hover, .auth-card input:hover { border-color: rgba(255,255,255,.24); }
+
+.profile-form input:not([type="checkbox"]):not([type="color"]):focus,
+.profile-form textarea:focus, .profile-form select:focus,
+.composer textarea:focus, .user-search input:focus, .friend-form input:focus,
+.trade-builder select:focus, .auth-card input:focus {
+  outline: none;
+  border-color: var(--ui-cyan);
+  background: #0b1025;
+  box-shadow: 0 0 0 4px rgba(84,221,255,.12), inset 0 1px 3px rgba(0,0,0,.2);
+}
+
+.profile-form input:user-invalid, .auth-card input:user-invalid {
+  border-color: rgba(255,99,126,.72);
+  box-shadow: 0 0 0 3px rgba(255,99,126,.08);
+}
+
+.profile-form-grid { gap: 14px; }
+.profile-form { gap: 15px; }
+.profile-form > .primary { width: 100%; margin-top: 2px; }
+.profile-form input[type="color"] {
+  width: 100%;
+  height: 52px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 13px;
+  padding: 5px;
+  background: #090d1f;
+  cursor: pointer;
+}
+.profile-form input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 8px; }
+.privacy-choice {
+  min-height: 52px;
+  padding: 11px 13px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 13px;
+  background: rgba(8,11,26,.62);
+  color: #c9cede !important;
+}
+.privacy-choice input { width: 19px !important; height: 19px; accent-color: var(--ui-gold); flex: 0 0 auto; }
+.profile-message:not(:empty), .trade-status:not(:empty) {
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(8,11,26,.6);
+}
+
+.trade-builder {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 14px;
+}
+.trade-builder::before {
+  content: "TROCA SEGURA ENTRE AMIGOS";
+  grid-column: 1 / -1;
+  color: var(--ui-gold);
+  font-size: .72rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+.trade-builder .trade-field:first-of-type { grid-column: 1 / -1; }
+.trade-builder .trade-field:nth-of-type(2),
+.trade-builder .trade-field:nth-of-type(3) {
+  padding: 14px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 16px;
+  background: rgba(7,10,24,.56);
+}
+.trade-builder .trade-field:nth-of-type(2) { border-color: rgba(84,221,255,.18); }
+.trade-builder .trade-field:nth-of-type(3) { border-color: rgba(255,200,87,.2); }
+.trade-field { gap: 8px; }
+.trade-field > span {
+  color: #dce0ec;
+  font-size: .75rem;
+  letter-spacing: .08em;
+}
+.trade-field:nth-of-type(2) > span { color: #8eeaff; }
+.trade-field:nth-of-type(3) > span { color: #ffd982; }
+.trade-picker-trigger {
+  width: 100%;
+  min-height: 70px;
+  border: 1px dashed rgba(255,255,255,.18);
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(18,22,45,.96), rgba(10,13,29,.96));
+  color: #d7dbea;
+  padding: 10px 12px;
+  transition: transform .18s var(--ui-ease), border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+.trade-picker-trigger:not(.selected) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.trade-picker-trigger:not(.selected)::before {
+  content: "+";
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  margin-right: 9px;
+  border-radius: 9px;
+  background: rgba(255,255,255,.07);
+  color: var(--ui-gold);
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+.trade-picker-trigger.selected {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--rarity) 68%, rgba(255,255,255,.15));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--rarity) 12%, #161a34), #0b0e20);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--rarity) 12%, transparent);
+}
+.trade-picker-trigger.selected img { width: 46px; height: 58px; border-radius: 8px; }
+.trade-picker-trigger:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--ui-gold); box-shadow: 0 10px 26px rgba(2,4,14,.25); }
+.trade-picker-trigger:disabled { opacity: .52; background: rgba(10,12,26,.7); cursor: not-allowed; }
+.trade-builder > .primary, .trade-builder > .trade-status { grid-column: 1 / -1; }
+.trade-builder > .primary { width: 100%; margin-top: 2px; }
+.trade-status { min-height: 0; margin: 0; font-size: .82rem; line-height: 1.45; }
+.trade-status.loading { border-color: rgba(84,221,255,.25); background: rgba(20,54,67,.32); }
+.trade-status.success { border-color: rgba(95,224,161,.25); background: rgba(18,58,43,.36); }
+.trade-status.error { border-color: rgba(255,99,126,.27); background: rgba(67,22,37,.38); }
+
+.composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+.composer .trade-picker-trigger { min-height: 62px; }
+.composer textarea { grid-column: 1 / -1; order: 3; }
+.composer > .primary { min-width: 118px; min-height: 62px; }
+
+.user-search, .friend-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: stretch;
+  padding: 7px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 15px;
+  background: rgba(7,10,24,.58);
+}
+.user-search input, .friend-form input { border-color: transparent; background: transparent; box-shadow: none; }
+.user-search input:focus, .friend-form input:focus { background: rgba(9,13,30,.8); }
+.user-search .primary, .friend-form .primary { min-width: 108px; }
+
+.auth-card {
+  overflow: auto;
+  max-height: calc(100dvh - 28px);
+  border-color: rgba(255,255,255,.15);
+  background:
+    radial-gradient(circle at 50% 0, rgba(140,108,255,.18), transparent 34%),
+    linear-gradient(155deg, #191d3a, #0d1023);
+  box-shadow: 0 30px 90px rgba(2,3,12,.55), inset 0 1px rgba(255,255,255,.06);
+}
+.auth-card form { gap: 12px; }
+.auth-card form > div { display: grid; gap: 6px; }
+.auth-card #authSubmit { width: 100%; margin-top: 6px; }
+.auth-link { color: #9eeeff; text-underline-offset: 3px; }
+
+#beanHub .bean-exchanges form label,
+#beanHub .bean-game-controls label { color: #dce0ec; font-weight: 800; }
+#beanHub .bean-exchanges input, #beanHub .bean-exchanges select,
+#beanHub .bean-game-controls input, #beanHub .bean-game-controls select {
+  min-height: 48px;
+  border-radius: 13px;
+  transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+}
+#beanHub .bean-exchanges input:focus, #beanHub .bean-exchanges select:focus,
+#beanHub .bean-game-controls input:focus, #beanHub .bean-game-controls select:focus {
+  outline: none;
+  border-color: var(--ui-cyan);
+  box-shadow: 0 0 0 4px rgba(84,221,255,.11);
+}
+
 @keyframes brand-breathe { 50% { transform: translateY(-1px); box-shadow: 0 11px 30px rgba(255,168,61,.3); } }
 @keyframes brand-glint { 0%, 66%, 100% { transform: translateX(-65%) rotate(10deg); } 82% { transform: translateX(65%) rotate(10deg); } }
 @keyframes ambient-orbit { to { transform: translate(34%, -18%) scale(1.15); opacity: .72; } }
@@ -310,6 +543,12 @@ html.lite-mode body::before, html.lite-mode .pack-opening-modal::before { displa
   .pack, .pack-art::before, .sticker::before, .sticker::after, .skin-shine { animation: none !important; }
   .theme-pack:hover, .mission-card:hover, .social-card:hover, .community-card:hover,
   .stat:hover, .rank-row:hover, .user-result:hover, .trade-row:hover { transform: none; }
+  .profile-form-grid, .trade-builder, .composer { grid-template-columns: 1fr; }
+  .trade-builder .trade-field:first-of-type,
+  .trade-builder > .primary, .trade-builder > .trade-status,
+  .composer textarea { grid-column: 1; }
+  .composer > .primary { width: 100%; min-height: 50px; }
+  .trade-picker-trigger:hover:not(:disabled) { transform: none; }
 }
 
 @media (max-width: 390px) {
@@ -318,4 +557,7 @@ html.lite-mode body::before, html.lite-mode .pack-opening-modal::before { displa
   .brand small { display: none; }
   .nav button { font-size: .73rem; }
   .album-grid { gap: 8px; }
+  .profile-form, .composer, .trade-builder { padding: 13px; border-radius: 16px; }
+  .user-search, .friend-form { grid-template-columns: 1fr; }
+  .user-search .primary, .friend-form .primary { width: 100%; }
 }
