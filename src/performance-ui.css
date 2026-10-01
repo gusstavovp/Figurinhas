@@ -3,15 +3,37 @@
   --ui-border: rgba(255, 255, 255, .1);
   --ui-shadow: 0 16px 44px rgba(4, 5, 14, .22);
   --ui-radius: 22px;
+  --ui-gold: #ffc857;
+  --ui-cyan: #54ddff;
+  --ui-violet: #8c6cff;
+  --ui-ease: cubic-bezier(.2, .8, .2, 1);
 }
 
+html { color-scheme: dark; }
+::selection { background: rgba(255, 200, 87, .28); color: #fff; }
 body {
+  isolation: isolate;
   background-color: #0c0d19;
   background-attachment: fixed;
   text-rendering: optimizeLegibility;
 }
 
-.shell { padding-bottom: 32px; }
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: .42;
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(84, 221, 255, .6) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 82% 32%, rgba(255, 200, 87, .56) 0 1px, transparent 1.7px),
+    radial-gradient(circle at 45% 78%, rgba(178, 119, 255, .5) 0 1px, transparent 1.6px);
+  background-size: 170px 170px, 230px 230px, 290px 290px;
+  mask-image: linear-gradient(to bottom, #000, transparent 88%);
+}
+
+.shell { position: relative; z-index: 1; padding-bottom: 32px; }
 
 .topbar {
   position: sticky;
@@ -25,8 +47,29 @@ body {
   box-shadow: 0 12px 34px rgba(3, 4, 12, .2);
   backdrop-filter: blur(14px);
 }
+.topbar::after {
+  content: "";
+  position: absolute;
+  inset: auto 16px -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 200, 87, .72), rgba(84, 221, 255, .56), transparent);
+  pointer-events: none;
+}
 
-.brand-mark { box-shadow: none; }
+.brand-mark {
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(255, 168, 61, .2);
+  animation: brand-breathe 4.8s ease-in-out infinite;
+}
+.brand-mark::after {
+  content: "";
+  position: absolute;
+  inset: -45%;
+  background: linear-gradient(110deg, transparent 38%, rgba(255,255,255,.72) 49%, transparent 60%);
+  transform: translateX(-65%) rotate(10deg);
+  animation: brand-glint 5.4s ease-in-out infinite;
+}
 .top-actions { gap: 10px; }
 .nav {
   padding: 5px;
@@ -35,13 +78,26 @@ body {
   background: rgba(255,255,255,.035);
 }
 .nav button {
+  position: relative;
+  overflow: hidden;
   min-height: 38px;
   padding: 8px 13px;
   border-radius: 10px;
   transition: background-color .16s ease, color .16s ease, transform .16s ease;
 }
 .nav button:hover { background: rgba(255,255,255,.07); transform: translateY(-1px); }
-.nav button.active { background: linear-gradient(135deg, #ffc857, #ff9d3b); color: #241708; box-shadow: none; }
+.nav button.active { background: linear-gradient(135deg, #ffd878, #ff9d3b); color: #241708; box-shadow: 0 8px 22px rgba(255, 164, 54, .18); }
+.nav button.active::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 18px;
+  height: 2px;
+  border-radius: 99px;
+  background: rgba(55, 29, 8, .62);
+  transform: translateX(-50%);
+}
 
 .hero, .community-card, .social-card, .viewed-profile, .missions-head,
 .roulette-card, .clicker-card, .casino-hero, .album-head, .odds-card,
@@ -49,6 +105,27 @@ body {
   border-color: var(--ui-border);
   box-shadow: var(--ui-shadow);
 }
+
+.intro, .pack-panel, .casino-hero, .roulette-card {
+  isolation: isolate;
+  box-shadow: 0 24px 65px rgba(2, 4, 14, .3), inset 0 1px rgba(255,255,255,.045);
+}
+.intro::before, .casino-hero::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 46%;
+  aspect-ratio: 1;
+  left: -12%;
+  bottom: -58%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(84,221,255,.16), transparent 68%);
+  animation: ambient-orbit 9s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+.intro h1, .casino-hero h1 { text-wrap: balance; text-shadow: 0 12px 35px rgba(0,0,0,.22); }
+.eyebrow { display: inline-flex; align-items: center; gap: 8px; }
+.eyebrow::before { content: ""; width: 18px; height: 2px; border-radius: 99px; background: currentColor; box-shadow: 0 0 12px currentColor; }
 
 .section-title, .missions-head, .album-head, .odds-intro { margin-bottom: 18px; }
 .section-title h2, .missions-head h2, .album-head h2, .odds-intro h2 { letter-spacing: -.025em; }
@@ -59,8 +136,52 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
   outline: 3px solid rgba(255, 200, 87, .5);
   outline-offset: 2px;
 }
-.primary { box-shadow: 0 8px 22px rgba(255, 166, 60, .16); }
-.primary:hover:not(:disabled) { transform: translateY(-1px); }
+.primary, .ghost, .filter { transition: transform .18s var(--ui-ease), box-shadow .18s ease, filter .18s ease, border-color .18s ease; }
+.primary { position: relative; overflow: hidden; box-shadow: 0 8px 22px rgba(255, 166, 60, .16); }
+.primary::after {
+  content: "";
+  position: absolute;
+  inset: -70% auto -70% -40%;
+  width: 26%;
+  background: rgba(255,255,255,.36);
+  transform: skewX(-18deg);
+  transition: left .46s var(--ui-ease);
+  pointer-events: none;
+}
+.primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(255, 166, 60, .24); }
+.primary:hover:not(:disabled)::after { left: 120%; }
+.primary:active:not(:disabled), .ghost:active:not(:disabled), .filter:active { transform: translateY(1px) scale(.985); }
+
+.progress-track, .mini-progress { position: relative; }
+.progress-fill, .mini-progress i { position: relative; overflow: hidden; }
+.progress-fill::after, .mini-progress i::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,.48) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: progress-shine 2.8s ease-in-out infinite;
+}
+
+.stat {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(145deg, rgba(30, 34, 65, .9), rgba(15, 18, 39, .88));
+  transition: transform .2s var(--ui-ease), border-color .2s ease, box-shadow .2s ease;
+}
+.stat::after {
+  content: "";
+  position: absolute;
+  width: 90px;
+  aspect-ratio: 1;
+  right: -42px;
+  bottom: -56px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(140,108,255,.24), transparent 70%);
+}
+.stat:hover { transform: translateY(-3px); border-color: rgba(140,108,255,.5); box-shadow: 0 14px 30px rgba(3,4,12,.25); }
+.stat strong { color: #fff; text-shadow: 0 4px 18px rgba(84,221,255,.12); }
+.metric-pop { animation: metric-pop .42s var(--ui-ease); }
 
 .album-grid { grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 16px; }
 .sticker {
@@ -69,7 +190,61 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
   contain-intrinsic-size: 180px 270px;
   transform: translateZ(0);
 }
-.sticker-photo { background: #111320; }
+.sticker-photo { background: #111320; transition: transform .36s var(--ui-ease), filter .28s ease; }
+.sticker:not(.locked):hover .sticker-photo { transform: scale(1.035); filter: saturate(1.08) contrast(1.03); }
+.sticker:not(.locked):hover .sticker-badge { transform: translateY(-2px); box-shadow: 0 6px 18px color-mix(in srgb, var(--rarity) 30%, transparent); }
+.sticker-badge { transition: transform .24s var(--ui-ease), box-shadow .24s ease; }
+.sticker.rarity-epic:not(.locked), .sticker.rarity-mythic:not(.locked),
+.sticker.rarity-legendary:not(.locked), .sticker.rarity-secret:not(.locked),
+.sticker.rarity-supersecret:not(.locked) { border-width: 2px; }
+.sticker.rarity-legendary:not(.locked) .sticker-badge,
+.sticker.rarity-secret:not(.locked) .sticker-badge,
+.sticker.rarity-supersecret:not(.locked) .sticker-badge { animation: rarity-badge 2.4s ease-in-out infinite; }
+
+.theme-pack, .mission-card, .social-card, .community-card, .feed-post,
+.rank-row, .user-result, .trade-row, .odds-card, .shop-card {
+  transition: transform .22s var(--ui-ease), border-color .22s ease, box-shadow .22s ease, background-color .22s ease;
+}
+.theme-pack:hover, .mission-card:hover, .social-card:hover, .community-card:hover,
+.odds-card:hover, .shop-card:hover { border-color: rgba(255,255,255,.2); box-shadow: 0 20px 48px rgba(2,4,14,.3); }
+.mission-card:hover, .rank-row:hover, .user-result:hover, .trade-row:hover { transform: translateY(-3px); }
+.feed-post:hover { border-color: rgba(84,221,255,.28); }
+
+.modal.open { animation: modal-backdrop-in .22s ease-out; }
+.modal.open .modal-card { animation: modal-card-in .34s var(--ui-ease); }
+.close { transition: transform .18s var(--ui-ease), background-color .18s ease, border-color .18s ease; }
+.close:hover { transform: rotate(8deg) scale(1.06); background: #242947; border-color: rgba(255,255,255,.25); }
+.pack-opening-modal.open::before {
+  content: "";
+  position: fixed;
+  width: min(70vw, 720px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--pack-color) 58%, transparent);
+  box-shadow: 0 0 80px color-mix(in srgb, var(--pack-color) 24%, transparent), inset 0 0 80px color-mix(in srgb, var(--pack-color) 10%, transparent);
+  animation: pack-ring 2.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.view-panel:not(.view-hidden) > * { animation: surface-enter .42s var(--ui-ease) both; }
+.view-panel:not(.view-hidden) > :nth-child(2) { animation-delay: .045s; }
+.view-panel:not(.view-hidden) > :nth-child(3) { animation-delay: .08s; }
+
+::view-transition-old(root) { animation: view-old .18s ease-in both; }
+::view-transition-new(root) { animation: view-new .32s var(--ui-ease) both; }
+
+@keyframes brand-breathe { 50% { transform: translateY(-1px); box-shadow: 0 11px 30px rgba(255,168,61,.3); } }
+@keyframes brand-glint { 0%, 66%, 100% { transform: translateX(-65%) rotate(10deg); } 82% { transform: translateX(65%) rotate(10deg); } }
+@keyframes ambient-orbit { to { transform: translate(34%, -18%) scale(1.15); opacity: .72; } }
+@keyframes progress-shine { 0%, 30% { transform: translateX(-110%); } 65%, 100% { transform: translateX(110%); } }
+@keyframes metric-pop { 0% { transform: scale(.86); opacity: .55; } 65% { transform: scale(1.08); } 100% { transform: none; opacity: 1; } }
+@keyframes rarity-badge { 50% { filter: brightness(1.18); transform: translateY(-1px); } }
+@keyframes modal-backdrop-in { from { opacity: 0; } }
+@keyframes modal-card-in { from { opacity: 0; transform: translateY(18px) scale(.97); } }
+@keyframes pack-ring { 0%, 100% { transform: scale(.82); opacity: .22; } 50% { transform: scale(1.04); opacity: .72; } }
+@keyframes surface-enter { from { opacity: 0; transform: translateY(12px); } }
+@keyframes view-old { to { opacity: 0; transform: translateY(-5px); } }
+@keyframes view-new { from { opacity: 0; transform: translateY(8px); } }
 .theme-pack, .mission-card, .feed-post, .trade-row, .community-card, .odds-card {
   content-visibility: auto;
   contain-intrinsic-size: auto 360px;
@@ -97,7 +272,8 @@ html.lite-mode .theme-pack, html.lite-mode .mission-card, html.lite-mode .sticke
   filter: none !important;
 }
 html.lite-mode .sticker::before, html.lite-mode .sticker::after,
-html.lite-mode .pack-art::before, html.lite-mode .skin-shine { display: none !important; }
+html.lite-mode .pack-art::before, html.lite-mode .skin-shine,
+html.lite-mode body::before, html.lite-mode .pack-opening-modal::before { display: none !important; }
 
 @media (prefers-reduced-motion: reduce), (update: slow) {
   *, *::before, *::after {
@@ -132,6 +308,8 @@ html.lite-mode .pack-art::before, html.lite-mode .skin-shine { display: none !im
   .section-title, .missions-head, .album-head, .odds-intro, .casino-hero { padding: 18px; }
   .primary:hover:not(:disabled), .nav button:hover { transform: none; }
   .pack, .pack-art::before, .sticker::before, .sticker::after, .skin-shine { animation: none !important; }
+  .theme-pack:hover, .mission-card:hover, .social-card:hover, .community-card:hover,
+  .stat:hover, .rank-row:hover, .user-result:hover, .trade-row:hover { transform: none; }
 }
 
 @media (max-width: 390px) {

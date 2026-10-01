@@ -125,6 +125,7 @@ function stats() {
 function renderStats() {
   const s = stats();
   byId("ownedCount").textContent = s.unique; byId("percentStat").textContent = `${s.percent}%`; byId("dupeStat").textContent = s.dupes; byId("juiceBalance").textContent = state.juice; byId("buyMystery").disabled = state.juice < 30;
+  if (!prefersLiteMode) ["ownedCount", "percentStat", "dupeStat", "juiceBalance"].forEach(id => { const metric = byId(id); metric.classList.remove("metric-pop"); requestAnimationFrame(() => metric.classList.add("metric-pop")); });
   document.querySelectorAll("[data-buy-theme]").forEach(button => button.disabled = state.juice < 40);
   document.querySelector(".progress-fill").style.width = `${s.percent}%`; document.querySelector(".progress-track").setAttribute("aria-valuenow", s.unique);
   byId("collectionCopy").textContent = s.unique === TOTAL_CARDS ? "Coleção completa. Você conquistou todas as versões!" : `${TOTAL_CARDS - s.unique} descobertas faltam — as secretas só aparecem depois de encontradas.`;
@@ -253,8 +254,12 @@ async function completeActivity(id, score) {
 const escapeHtml = value => String(value || "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 function setActiveView(view, updateHash = true) {
   const validView = ["album", "community", "social", "trades", "missions", "casino"].includes(view) ? view : "album";
-  document.querySelectorAll("[data-view-panel]").forEach(panel => panel.classList.toggle("view-hidden", panel.dataset.viewPanel !== validView));
-  document.querySelectorAll("[data-jump]").forEach(button => { const active = button.dataset.jump === validView; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); });
+  const updateView = () => {
+    document.querySelectorAll("[data-view-panel]").forEach(panel => panel.classList.toggle("view-hidden", panel.dataset.viewPanel !== validView));
+    document.querySelectorAll("[data-jump]").forEach(button => { const active = button.dataset.jump === validView; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); });
+  };
+  if (updateHash && !prefersLiteMode && document.startViewTransition) document.startViewTransition(updateView);
+  else updateView();
   if (updateHash) history.replaceState(null, "", `#${validView}`);
   if (validView === "community" && currentUser) loadLeaderboard().catch(showCommunityError);
   if (validView === "casino" && currentUser) ensureBeanHub().then(hub => hub.refresh()).catch(error => console.error("Cassino:", error));
