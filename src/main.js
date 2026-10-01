@@ -657,7 +657,7 @@ document.querySelectorAll("[data-jump]").forEach(button => button.onclick = () =
 async function ensureBeanHub() {
   if (beanHub) return beanHub;
   if (!beanHubPromise) beanHubPromise = import('./beans.js').then(({createBeanHub}) => {
-    beanHub = createBeanHub({client:supabase,cards,rarities,getUser:()=>currentUser,onChanged:async kind=>{
+    beanHub = createBeanHub({client:supabase,cards,rarities,getUser:()=>currentUser,onOpenClicker:openClicker,onChanged:async kind=>{
       if (kind !== 'game') {
         const {data,error}=await supabase.from('album_progress').select('owned,coins').eq('user_id',currentUser.id).single();
         if(error) throw error;
