@@ -105,6 +105,10 @@ const recoveryParams = new URLSearchParams(location.search);
 const recoveryHash = new URLSearchParams(location.hash.slice(1));
 let currentFilter = "all", currentRarity = "all", registerMode = false, passwordRecoveryMode = recoveryParams.get("recovery") === "1" || recoveryHash.get("type") === "recovery", dailyAvailable = false, gameTimer = null, targetTimer = null;
 let currentUser = null, socialProfile = null, friends = [], friendships = [], trades = [], currentDetailCard = null, friendOwned = {}, postPendingDelete = null, tradePartnerReady = false, tradeLoadVersion = 0;
+const MAX_TRADE_CARDS = 5;
+const FAIR_TRADE_RATIO = .65;
+const tradeCardValues = { common: 1, uncommon: 2, rare: 4, epic: 7, mythic: 11, legendary: 17, secret: 25, supersecret: 40 };
+const tradeSelections = { offered: [], requested: [] };
 let rankSort = "stickers", communityLoaded = false, viewedUserId = null;
 let pendingPackReveal = null, packOpenClicks = 0, packRevealTimer = null;
 let beanHub = null;
@@ -270,7 +274,7 @@ function renderOwnedOptions() {
   const owned = ownedCards();
   if (byId("postCard").value && !state.owned[byId("postCard").value]) byId("postCard").value = "";
   updatePostPickerTrigger();
-  if (byId("offeredCard").value && !state.owned[byId("offeredCard").value]) byId("offeredCard").value = "";
+  tradeSelections.offered = tradeSelections.offered.filter(id => Number(state.owned[id] || 0) > 0);
   updateTradePickerTrigger("offered");
 }
 function updatePostPickerTrigger() {
@@ -296,28 +300,57 @@ function setTradeStatus(message, tone = "") {
   status.textContent = message;
   status.className = `trade-status${tone ? ` ${tone}` : ""}`;
 }
+const tradeBundleValue = selection => selection.reduce((total, id) => total + (tradeCardValues[cards.find(card => card.id === id)?.rarity] || 0), 0);
+function tradeFairness() {
+  const offeredValue = tradeBundleValue(tradeSelections.offered), requestedValue = tradeBundleValue(tradeSelections.requested);
+  const overlap = tradeSelections.offered.some(id => tradeSelections.requested.includes(id));
+  const ratio = offeredValue && requestedValue ? Math.min(offeredValue, requestedValue) / Math.max(offeredValue, requestedValue) : 0;
+  return { offeredValue, requestedValue, overlap, ratio, fair: !overlap && ratio >= FAIR_TRADE_RATIO };
+}
+function renderTradeSelection(type) {
+  const selection = tradeSelections[type], container = byId(type === "offered" ? "tradeOfferedSelection" : "tradeRequestedSelection");
+  container.innerHTML = selection.map(id => { const card = cards.find(item => item.id === id), r = rarity(card.rarity); return `<span class="trade-selection-card" style="--rarity:${r.color}"><img src="${card.image}" alt=""><span><b>#${String(card.id).padStart(3, "0")}</b><small>${r.name}</small></span><button type="button" data-remove-trade-card="${id}" data-trade-side="${type}" aria-label="Remover ${escapeHtml(card.name)}">×</button></span>`; }).join("");
+  container.querySelectorAll("[data-remove-trade-card]").forEach(button => button.onclick = () => { tradeSelections[button.dataset.tradeSide] = tradeSelections[button.dataset.tradeSide].filter(id => id !== Number(button.dataset.removeTradeCard)); updateTradePickerTrigger(button.dataset.tradeSide); });
+}
+function updateTradeFairness() {
+  const result = tradeFairness(), badge = byId("fairnessBadge");
+  byId("offeredTradeValue").textContent = `${result.offeredValue} pts`;
+  byId("requestedTradeValue").textContent = `${result.requestedValue} pts`;
+  badge.className = "fairness-badge";
+  if (!result.offeredValue || !result.requestedValue) { badge.classList.add("waiting"); badge.textContent = "Monte os dois lados"; }
+  else if (result.overlap) { badge.classList.add("unfair"); badge.textContent = "Remova figurinhas iguais"; }
+  else if (result.fair) { badge.classList.add("fair"); badge.textContent = `Troca justa · ${Math.round(result.ratio * 100)}%`; }
+  else { badge.classList.add("unfair"); badge.textContent = `Desequilibrada · ${Math.round(result.ratio * 100)}%`; }
+  return result;
+}
 function updateTradeSubmitState() {
-  const submit = byId("tradeSubmit");
-  submit.disabled = !tradePartnerReady || !byId("tradeFriend").value || !byId("offeredCard").value || !byId("requestedCard").value;
+  const submit = byId("tradeSubmit"), result = updateTradeFairness();
+  submit.disabled = !tradePartnerReady || !byId("tradeFriend").value || !tradeSelections.offered.length || !tradeSelections.requested.length || !result.fair;
 }
 function updateTradePickerTrigger(type) {
-  const offered = type === "offered", input = byId(offered ? "offeredCard" : "requestedCard"), button = byId(offered ? "offeredPickerButton" : "requestedPickerButton"), friendSelected = Boolean(byId("tradeFriend").value), source = offered ? state.owned : friendOwned, available = cards.some(card => (source[card.id] || 0) > 0), card = cards.find(item => item.id === Number(input.value));
-  button.disabled = !friendSelected || !tradePartnerReady || !available; button.classList.remove("selected");
+  const offered = type === "offered", input = byId(offered ? "offeredCard" : "requestedCard"), button = byId(offered ? "offeredPickerButton" : "requestedPickerButton"), friendSelected = Boolean(byId("tradeFriend").value), source = offered ? state.owned : friendOwned, available = cards.some(card => (source[card.id] || 0) > 0), selection = tradeSelections[type];
+  button.disabled = !friendSelected || !tradePartnerReady || !available; button.classList.remove("selected", "multi-selected");
+  input.value = JSON.stringify(selection);
+  renderTradeSelection(type);
   if (!friendSelected) { button.textContent = "Escolha um amigo primeiro"; updateTradeSubmitState(); return; }
   if (!tradePartnerReady) { button.textContent = "Aguardando coleção do amigo"; updateTradeSubmitState(); return; }
   if (!available) { button.textContent = offered ? "Você ainda não tem figurinhas" : "Seu amigo ainda não tem figurinhas"; updateTradeSubmitState(); return; }
-  if (!card || !(source[card.id] > 0)) { input.value = ""; button.textContent = offered ? "Escolha a sua figurinha" : "Escolha a figurinha do amigo"; updateTradeSubmitState(); return; }
-  const r = rarity(card.rarity); button.classList.add("selected"); button.style.setProperty("--rarity", r.color); button.innerHTML = `<img src="${card.image}" alt=""><span><b>#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}</b><small>${r.name} · ${tradePickerMeta(type, card)}</small></span>`;
+  if (!selection.length) { button.textContent = offered ? "Adicionar suas figurinhas" : "Adicionar figurinhas do amigo"; updateTradeSubmitState(); return; }
+  const preview = selection.slice(0, 3).map(id => `<img src="${cards.find(card => card.id === id).image}" alt="">`).join("");
+  button.classList.add("selected", "multi-selected"); button.style.setProperty("--rarity", "#8eeaff"); button.innerHTML = `<span class="trade-trigger-stack">${preview}</span><span><b>${selection.length} ${selection.length === 1 ? "figurinha selecionada" : "figurinhas selecionadas"}</b><small>${tradeBundleValue(selection)} pontos · toque para editar</small></span>`;
   updateTradeSubmitState();
 }
 function openStickerPicker(type) {
   const avatar = type === "avatar", post = type === "post", offered = type === "offered", source = avatar || post || offered ? state.owned : friendOwned, available = cards.filter(card => (source[card.id] || 0) > 0);
   if ((!avatar && !post && !byId("tradeFriend").value) || (!avatar && !available.length)) return;
-  byId("tradePickerTitle").textContent = avatar ? "Qual figurinha será seu avatar?" : post ? "Qual figurinha você quer publicar?" : offered ? "Qual figurinha você oferece?" : "Qual figurinha você quer receber?";
-  byId("tradePickerHelp").textContent = avatar ? "Escolha uma figurinha da sua coleção. A foto, o número, o nome, a raridade e sua quantidade aparecem em cada opção." : post ? "Escolha uma figurinha da sua coleção para mostrar no Feed." : offered ? "Veja se seu amigo já possui cada opção antes de escolher." : "As opções abaixo pertencem ao seu amigo. Destacamos as que ainda faltam no seu álbum.";
+  const tradeMode = offered || type === "requested", selected = tradeMode ? tradeSelections[type] : [];
+  byId("tradePickerTitle").textContent = avatar ? "Qual figurinha será seu avatar?" : post ? "Qual figurinha você quer publicar?" : offered ? "Quais figurinhas você oferece?" : "Quais figurinhas você quer receber?";
+  byId("tradePickerHelp").textContent = avatar ? "Escolha uma figurinha da sua coleção. A foto, o número, o nome, a raridade e sua quantidade aparecem em cada opção." : post ? "Escolha uma figurinha da sua coleção para mostrar no Feed." : offered ? "Selecione até 5 figurinhas. Veja também se seu amigo já possui cada uma." : "Selecione até 5 figurinhas do seu amigo. Destacamos as que ainda faltam no seu álbum.";
   const clearAvatar = avatar ? '<button class="trade-picker-option" type="button" data-pick-card="" aria-label="Remover avatar de figurinha"><span class="avatar-empty-icon">✦</span><span><b>Sem avatar de figurinha</b><small>Usar imagem padrão</small><span class="ownership-tag">Selecionar</span></span></button>' : "";
-  byId("tradePickerGrid").innerHTML = clearAvatar + available.map(card => { const r = rarity(card.rarity), counterpartCount = avatar || post ? state.owned[card.id] : offered ? (friendOwned[card.id] || 0) : (state.owned[card.id] || 0), status = avatar || post ? `Você tem ${state.owned[card.id]}x` : tradePickerMeta(type, card); return `<button class="trade-picker-option" type="button" data-pick-card="${card.id}" style="--rarity:${r.color}" aria-label="#${String(card.id).padStart(3, "0")} ${escapeHtml(card.name)}, ${r.name}, ${status}"><img src="${card.image}" alt=""><span><b>#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}</b><small>${r.name} · ${source[card.id]}x</small><span class="ownership-tag ${counterpartCount ? "" : "missing"}">${status}</span></span></button>`; }).join("");
-  byId("tradePickerGrid").querySelectorAll("[data-pick-card]").forEach(button => button.onclick = () => { byId(avatar ? "profileAvatar" : post ? "postCard" : offered ? "offeredCard" : "requestedCard").value = button.dataset.pickCard; if (avatar) { updateAvatarPickerTrigger(); updateProfilePreview(); } else if (post) updatePostPickerTrigger(); else updateTradePickerTrigger(type); closeModal("tradePickerModal"); });
+  byId("tradePickerGrid").innerHTML = clearAvatar + available.map(card => { const r = rarity(card.rarity), counterpartCount = avatar || post ? state.owned[card.id] : offered ? (friendOwned[card.id] || 0) : (state.owned[card.id] || 0), status = avatar || post ? `Você tem ${state.owned[card.id]}x` : tradePickerMeta(type, card), isSelected = selected.includes(card.id); return `<button class="trade-picker-option ${isSelected ? "picked" : ""}" type="button" data-pick-card="${card.id}" style="--rarity:${r.color}" aria-pressed="${isSelected}" aria-label="#${String(card.id).padStart(3, "0")} ${escapeHtml(card.name)}, ${r.name}, ${status}"><img src="${card.image}" alt=""><span><b>#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}</b><small>${r.name} · ${source[card.id]}x · ${tradeCardValues[card.rarity]} pts</small><span class="ownership-tag ${counterpartCount ? "" : "missing"}">${isSelected ? "✓ Selecionada" : status}</span></span></button>`; }).join("");
+  byId("tradePickerFooter").hidden = !tradeMode;
+  if (tradeMode) byId("tradePickerCount").textContent = `${selected.length} de ${MAX_TRADE_CARDS} selecionadas`;
+  byId("tradePickerGrid").querySelectorAll("[data-pick-card]").forEach(button => button.onclick = () => { const id = Number(button.dataset.pickCard); if (tradeMode) { const current = tradeSelections[type]; if (current.includes(id)) tradeSelections[type] = current.filter(cardId => cardId !== id); else if (current.length < MAX_TRADE_CARDS) tradeSelections[type] = [...current, id]; else { byId("tradePickerHelp").textContent = `O limite é de ${MAX_TRADE_CARDS} figurinhas por pessoa. Remova uma para escolher outra.`; return; } updateTradePickerTrigger(type); openStickerPicker(type); return; } byId(avatar ? "profileAvatar" : "postCard").value = button.dataset.pickCard; if (avatar) { updateAvatarPickerTrigger(); updateProfilePreview(); } else updatePostPickerTrigger(); closeModal("tradePickerModal"); });
   openModal("tradePickerModal");
 }
 function renderSocialProfile() {
@@ -428,7 +461,7 @@ function renderFriends() {
   byId("requestList").innerHTML = incoming.map(row => `<div class="friend-row"><div><b>${escapeHtml(row.requester.display_name)}</b><small>@${escapeHtml(row.requester.handle)}</small></div><div class="row-actions"><button class="primary" data-friend-response="${row.id}" data-accept="true">Aceitar</button><button class="ghost" data-friend-response="${row.id}" data-accept="false">Recusar</button></div></div>`).join("") + outgoing.map(row => `<div class="friend-row"><div><b>${escapeHtml(row.addressee.display_name)}</b><small>Pedido enviado</small></div></div>`).join("") || '<div class="empty-small">Nenhum pedido pendente.</div>';
   byId("tradeFriend").innerHTML = '<option value="">Escolha um amigo</option>' + friends.map(friend => `<option value="${friend.user_id}">${escapeHtml(friend.display_name)} · @${escapeHtml(friend.handle)}</option>`).join("");
   if (friends.some(friend => friend.user_id === selectedFriend)) byId("tradeFriend").value = selectedFriend;
-  else if (selectedFriend) { friendOwned = {}; tradePartnerReady = false; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); setTradeStatus("Esse usuário não está mais na sua lista de amigos.", "error"); }
+  else if (selectedFriend) { friendOwned = {}; tradePartnerReady = false; tradeSelections.offered = []; tradeSelections.requested = []; updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested"); setTradeStatus("Esse usuário não está mais na sua lista de amigos.", "error"); }
   document.querySelectorAll("[data-friend-response]").forEach(button => button.onclick = () => respondFriend(Number(button.dataset.friendResponse), button.dataset.accept === "true"));
   document.querySelectorAll("[data-trade-friend]").forEach(button => button.onclick = () => { byId("tradeFriend").value = button.dataset.tradeFriend; byId("tradeFriend").dispatchEvent(new Event("change")); setActiveView("trades"); });
 }
@@ -439,7 +472,9 @@ function renderFeed(posts) {
 function tradeParty(trade) { return trade.proposer_id === currentUser.id ? trade.recipient : trade.proposer; }
 function renderTrades() {
   const pending = trades.filter(trade => trade.status === "pending");
-  byId("tradeList").innerHTML = pending.length ? pending.map(trade => { const offered = cards.find(card => card.id === trade.offered_card_id), requested = cards.find(card => card.id === trade.requested_card_id), other = tradeParty(trade), incoming = trade.recipient_id === currentUser.id; return `<div class="trade-row"><img src="${offered.image}" alt="${escapeHtml(offered.name)}" loading="lazy" decoding="async"><div><b>#${String(offered.id).padStart(3, "0")} · ${escapeHtml(offered.name)}</b><small>${incoming ? `${escapeHtml(other.display_name)} oferece` : "Você oferece"} · ${rarity(offered.rarity).name}</small></div><b>↔</b><img src="${requested.image}" alt="${escapeHtml(requested.name)}" loading="lazy" decoding="async"><div><b>#${String(requested.id).padStart(3, "0")} · ${escapeHtml(requested.name)}</b><small>${incoming ? "Em troca da sua" : `De ${escapeHtml(other.display_name)}`} · ${rarity(requested.rarity).name}</small></div><div class="row-actions">${incoming ? `<button class="primary" data-trade-response="${trade.id}" data-accept="true">Aceitar</button><button class="ghost" data-trade-response="${trade.id}" data-accept="false">Recusar</button>` : `<button class="ghost" data-trade-cancel="${trade.id}">Cancelar</button>`}</div></div>`; }).join("") : '<div class="empty-small">Nenhuma troca pendente.</div>';
+  const bundle = (ids, fallback) => (ids?.length ? ids : [fallback]).map(id => cards.find(card => card.id === id)).filter(Boolean);
+  const bundleHtml = items => `<div class="trade-row-bundle">${items.map(card => `<span style="--rarity:${rarity(card.rarity).color}" title="#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)}"><img src="${card.image}" alt="${escapeHtml(card.name)}" loading="lazy" decoding="async"><small>#${String(card.id).padStart(3, "0")}</small></span>`).join("")}</div>`;
+  byId("tradeList").innerHTML = pending.length ? pending.map(trade => { const offered = bundle(trade.offered_card_ids, trade.offered_card_id), requested = bundle(trade.requested_card_ids, trade.requested_card_id), other = tradeParty(trade), incoming = trade.recipient_id === currentUser.id, ratio = Math.round(Math.min(tradeBundleValue(offered.map(card => card.id)), tradeBundleValue(requested.map(card => card.id))) / Math.max(tradeBundleValue(offered.map(card => card.id)), tradeBundleValue(requested.map(card => card.id))) * 100); return `<div class="trade-row multi"><div><small>${incoming ? `${escapeHtml(other.display_name)} oferece` : "Você oferece"}</small>${bundleHtml(offered)}<b>${tradeBundleValue(offered.map(card => card.id))} pts</b></div><div class="trade-row-swap">↔<small>${ratio}%</small></div><div><small>${incoming ? "Em troca das suas" : `De ${escapeHtml(other.display_name)}`}</small>${bundleHtml(requested)}<b>${tradeBundleValue(requested.map(card => card.id))} pts</b></div><div class="row-actions">${incoming ? `<button class="primary" data-trade-response="${trade.id}" data-accept="true">Aceitar</button><button class="ghost" data-trade-response="${trade.id}" data-accept="false">Recusar</button>` : `<button class="ghost" data-trade-cancel="${trade.id}">Cancelar</button>`}</div></div>`; }).join("") : '<div class="empty-small">Nenhuma troca pendente.</div>';
   document.querySelectorAll("[data-trade-response]").forEach(button => button.onclick = () => respondTrade(Number(button.dataset.tradeResponse), button.dataset.accept === "true"));
   document.querySelectorAll("[data-trade-cancel]").forEach(button => button.onclick = () => cancelTrade(Number(button.dataset.tradeCancel)));
 }
@@ -447,7 +482,7 @@ async function refreshSocial() {
   const profileQuery = supabase.from("social_profiles").select("user_id,handle,display_name,featured_card,bio,accent_color,avatar_card,collection_visibility,show_in_rankings").eq("user_id", currentUser.id).single();
   const friendshipQuery = supabase.from("friendships").select("id,requester_id,addressee_id,status,requester:social_profiles!friendships_requester_id_fkey(user_id,handle,display_name,featured_card),addressee:social_profiles!friendships_addressee_id_fkey(user_id,handle,display_name,featured_card)").order("created_at", { ascending: false });
   const feedQuery = supabase.from("feed_posts").select("id,user_id,card_id,caption,created_at,author:social_profiles!feed_posts_user_id_fkey(user_id,handle,display_name)").order("created_at", { ascending: false }).limit(40);
-  const tradeQuery = supabase.from("sticker_trades").select("id,proposer_id,recipient_id,offered_card_id,requested_card_id,status,created_at,proposer:social_profiles!sticker_trades_proposer_id_fkey(user_id,handle,display_name),recipient:social_profiles!sticker_trades_recipient_id_fkey(user_id,handle,display_name)").order("created_at", { ascending: false }).limit(50);
+  const tradeQuery = supabase.from("sticker_trades").select("id,proposer_id,recipient_id,offered_card_id,requested_card_id,offered_card_ids,requested_card_ids,status,created_at,proposer:social_profiles!sticker_trades_proposer_id_fkey(user_id,handle,display_name),recipient:social_profiles!sticker_trades_recipient_id_fkey(user_id,handle,display_name)").order("created_at", { ascending: false }).limit(50);
   const [profileResult, friendshipResult, feedResult, tradeResult] = await Promise.all([profileQuery, friendshipQuery, feedQuery, tradeQuery]);
   for (const result of [profileResult, friendshipResult, feedResult, tradeResult]) if (result.error) throw result.error;
   socialProfile = profileResult.data; friendships = friendshipResult.data || []; trades = tradeResult.data || [];
@@ -707,10 +742,11 @@ byId("openingPackTap").onclick = tapOpeningPack;
 byId("postForm").addEventListener("submit", async event => { event.preventDefault(); const cardId = byId("postCard").value; if (!cardId) return; const button = event.submitter; button.disabled = true; try { await publishSticker(cardId, byId("postCaption").value); byId("postCaption").value = ""; } catch (error) { alert(error.message); } finally { button.disabled = false; } });
 byId("friendForm").addEventListener("submit", async event => { event.preventDefault(); const handle = byId("friendHandle").value.trim().replace(/^@/, "").toLowerCase(); if (!handle) return; const button = event.submitter; button.disabled = true; const { error } = await supabase.rpc("send_friend_request", { p_handle: handle }); button.disabled = false; if (error) return alert(error.message); byId("friendHandle").value = ""; await refreshSocial(); });
 byId("postPickerButton").onclick = () => openStickerPicker("post"); byId("profileAvatarButton").onclick = () => openStickerPicker("avatar"); byId("offeredPickerButton").onclick = () => openStickerPicker("offered"); byId("requestedPickerButton").onclick = () => openStickerPicker("requested");
+byId("tradePickerDone").onclick = () => closeModal("tradePickerModal");
 byId("confirmDeletePost").onclick = deleteOwnPost;
 byId("tradeFriend").addEventListener("change", async event => {
   const friendId = event.target.value, requestVersion = ++tradeLoadVersion;
-  friendOwned = {}; tradePartnerReady = false; byId("offeredCard").value = ""; byId("requestedCard").value = "";
+  friendOwned = {}; tradePartnerReady = false; tradeSelections.offered = []; tradeSelections.requested = []; byId("offeredCard").value = "[]"; byId("requestedCard").value = "[]";
   updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested");
   if (!friendId) { setTradeStatus("Escolha um amigo para carregar as figurinhas disponíveis."); return; }
   byId("offeredPickerButton").textContent = "Carregando coleção…"; byId("requestedPickerButton").textContent = "Carregando coleção…";
@@ -727,13 +763,14 @@ byId("tradeFriend").addEventListener("change", async event => {
 });
 byId("tradeForm").addEventListener("submit", async event => {
   event.preventDefault();
-  const friend = byId("tradeFriend").value, offered = byId("offeredCard").value, requested = byId("requestedCard").value, button = event.submitter || byId("tradeSubmit");
-  if (!tradePartnerReady || !friend || !offered || !requested) { setTradeStatus("Escolha o amigo e as duas figurinhas antes de enviar.", "error"); return; }
+  const friend = byId("tradeFriend").value, offered = [...tradeSelections.offered], requested = [...tradeSelections.requested], button = event.submitter || byId("tradeSubmit"), fairness = tradeFairness();
+  if (!tradePartnerReady || !friend || !offered.length || !requested.length) { setTradeStatus("Escolha o amigo e pelo menos uma figurinha de cada lado.", "error"); return; }
+  if (!fairness.fair) { setTradeStatus("Ajuste as figurinhas até a troca ficar justa antes de enviar.", "error"); return; }
   button.disabled = true; button.textContent = "Enviando…"; setTradeStatus("Enviando proposta de troca…", "loading");
   try {
-    const { error } = await supabase.rpc("propose_sticker_trade", { p_friend: friend, p_offered: Number(offered), p_requested: Number(requested) });
+    const { error } = await supabase.rpc("propose_sticker_trade", { p_friend: friend, p_offered_cards: offered, p_requested_cards: requested });
     if (error) throw error;
-    byId("offeredCard").value = ""; byId("requestedCard").value = "";
+    tradeSelections.offered = []; tradeSelections.requested = []; byId("offeredCard").value = "[]"; byId("requestedCard").value = "[]";
     updateTradePickerTrigger("offered"); updateTradePickerTrigger("requested");
     setTradeStatus("Proposta enviada. Ela já aparece na lista de trocas pendentes.", "success");
     await refreshSocial();
