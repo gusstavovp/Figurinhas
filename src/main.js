@@ -649,7 +649,6 @@ async function initialize() {
 }
 
 document.querySelectorAll("[data-jump]").forEach(button => button.onclick = () => setActiveView(button.dataset.jump));
-byId("openCasinoTab").onclick = () => window.open(`${location.origin}${location.pathname}${location.search}#casino`, "_blank", "noopener,noreferrer");
 beanHub = createBeanHub({client:supabase,cards,rarities,getUser:()=>currentUser,onChanged:async kind=>{
   if (kind !== 'game') {
     const {data,error}=await supabase.from('album_progress').select('owned,coins').eq('user_id',currentUser.id).single();
