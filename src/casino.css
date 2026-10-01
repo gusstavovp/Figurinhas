@@ -1,0 +1,115 @@
+#beanHub {
+  padding: clamp(16px, 3vw, 30px);
+  border-color: #665175;
+  border-radius: 24px;
+  background: radial-gradient(circle at 90% 0, #ffb13b14, transparent 28%), linear-gradient(135deg, #202035, #151523);
+  box-shadow: 0 22px 60px #0005;
+}
+
+#beanHub .bean-game-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin: 16px 0;
+}
+
+#beanHub .bean-game-tabs button {
+  transition: transform .18s, background .18s, border-color .18s;
+}
+
+#beanHub .bean-game-tabs button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: #d6a85c;
+}
+
+#beanHub .bean-game-tabs button.active {
+  background: linear-gradient(135deg, #7e3d53, #5a335f);
+  border-color: #ffb14e;
+  box-shadow: 0 7px 22px #0005;
+}
+
+#beanHub .bean-slots,
+#beanHub .bean-coin-arena {
+  width: 100%;
+  text-align: center;
+}
+
+#beanHub .bean-slot-machine {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(70px, 130px));
+  justify-content: center;
+  gap: 12px;
+  padding: 28px;
+  border: 8px solid #8a5a28;
+  border-radius: 24px;
+  background: linear-gradient(#e4ae48, #754018);
+  box-shadow: inset 0 0 0 3px #ffe69b, 0 18px 40px #0007;
+}
+
+#beanHub .bean-slot-machine span {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border: 3px solid #3b2530;
+  border-radius: 15px;
+  background: radial-gradient(circle, #fff8e6, #d8c9b1);
+  box-shadow: inset 0 7px 14px #fff, 0 5px 12px #0005;
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
+}
+
+#beanHub .bean-slots > b,
+#beanHub .bean-coin-arena > b {
+  display: block;
+  margin-top: 20px;
+  font-size: clamp(1.1rem, 3vw, 1.55rem);
+}
+
+#beanHub .bean-slots > small {
+  display: block;
+  margin-top: 7px;
+  color: #bdb4c9;
+}
+
+#beanHub .bean-slots.spinning .bean-slot-machine span { animation: slot-roll .16s linear infinite; }
+#beanHub .bean-slots.settled .bean-slot-machine { animation: slot-settle .55s cubic-bezier(.2, .9, .25, 1); }
+
+#beanHub .bean-coin {
+  position: relative;
+  width: min(220px, 60vw);
+  aspect-ratio: 1;
+  margin: auto;
+  transform-style: preserve-3d;
+  transition: transform .55s;
+}
+
+#beanHub .bean-coin span,
+#beanHub .bean-coin i {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border: 8px solid #c88620;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 28%, #fff1a8, #e3a72f 46%, #835016);
+  color: #2f1d18;
+  box-shadow: inset 0 0 0 6px #ffdf75, 0 18px 40px #0006;
+  font: 900 4rem Fraunces, serif;
+  backface-visibility: hidden;
+}
+
+#beanHub .bean-coin i { transform: rotateY(180deg); font-style: normal; }
+#beanHub .bean-coin.tails { transform: rotateY(180deg); }
+#beanHub .bean-coin.flipping { animation: coin-flip .75s linear infinite; }
+
+@keyframes slot-roll { 50% { transform: translateY(7px); filter: blur(3px); } }
+@keyframes slot-settle { 0% { transform: scale(.96); } 55% { transform: scale(1.025); } 100% { transform: none; } }
+@keyframes coin-flip { to { transform: rotateY(1080deg); } }
+
+@media (max-width: 760px) {
+  #beanHub .bean-game-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  #beanHub .bean-slot-machine { gap: 6px; padding: 14px; border-width: 5px; }
+  #beanHub .bean-coin { width: min(180px, 55vw); }
+}

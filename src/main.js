@@ -246,12 +246,12 @@ async function completeActivity(id, score) {
 }
 const escapeHtml = value => String(value || "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 function setActiveView(view, updateHash = true) {
-  const validView = ["album", "community", "social", "trades", "missions"].includes(view) ? view : "album";
+  const validView = ["album", "community", "social", "trades", "missions", "casino"].includes(view) ? view : "album";
   document.querySelectorAll("[data-view-panel]").forEach(panel => panel.classList.toggle("view-hidden", panel.dataset.viewPanel !== validView));
   document.querySelectorAll("[data-jump]").forEach(button => { const active = button.dataset.jump === validView; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); });
   if (updateHash) history.replaceState(null, "", `#${validView}`);
   if (validView === "community" && currentUser) loadLeaderboard().catch(showCommunityError);
-  if (validView === "missions" && currentUser) beanHub?.refresh();
+  if (validView === "casino" && currentUser) beanHub?.refresh();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 const ownedCards = () => cards.filter(card => (state.owned[card.id] || 0) > 0);
@@ -534,7 +534,7 @@ async function loadProfile(user) {
   state.owned = progress.owned || {}; state.juice = progress.coins || 0; state.lastOpened = progress.last_daily_pack; state.packs = progress.packs_opened || 0; state.activities = progress.daily_activity_date === todayKey() ? (progress.daily_activities || {}) : {}; state.activityDate = progress.daily_activity_date; state.lastRouletteSpin = progress.last_roulette_spin; dailyAvailable = progress.last_daily_pack !== todayKey();
   byId("accountEmail").textContent = profile.name || profile.email; byId("authGate").classList.add("ready"); renderOdds(); renderAll();
   beanHub?.refresh();
-  if (new URLSearchParams(location.search).has('arcade')) setTimeout(()=>byId('beanHub').scrollIntoView({behavior:'smooth',block:'start'}),250);
+  if (new URLSearchParams(location.search).has('arcade')) setTimeout(() => setActiveView('casino'), 250);
   try { await refreshSocial(); if (location.hash === "#community") await loadLeaderboard(); } catch (error) { byId("feedList").innerHTML = `<div class="empty-small">Não foi possível carregar a área social: ${escapeHtml(error.message)}</div>`; }
 }
 function showPasswordRecoveryForm() {
@@ -649,6 +649,7 @@ async function initialize() {
 }
 
 document.querySelectorAll("[data-jump]").forEach(button => button.onclick = () => setActiveView(button.dataset.jump));
+byId("openCasinoTab").onclick = () => window.open(`${location.origin}${location.pathname}${location.search}#casino`, "_blank", "noopener,noreferrer");
 beanHub = createBeanHub({client:supabase,cards,rarities,getUser:()=>currentUser,onChanged:async kind=>{
   if (kind !== 'game') {
     const {data,error}=await supabase.from('album_progress').select('owned,coins').eq('user_id',currentUser.id).single();
