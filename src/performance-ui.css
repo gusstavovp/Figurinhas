@@ -108,6 +108,14 @@ html.lite-mode .pack-art::before, html.lite-mode .skin-shine { display: none !im
   .topbar { backdrop-filter: none; }
 }
 
+@media (max-width: 1020px) and (min-width: 761px) {
+  .topbar { flex-direction: column; align-items: stretch; }
+  .top-actions { display: grid; grid-template-columns: auto minmax(0, 1fr); width: 100%; }
+  .account { justify-self: end; }
+  .nav { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); width: 100%; }
+  .nav button { padding-inline: 8px; }
+}
+
 @media (max-width: 760px) {
   :root { --ui-shadow: 0 7px 20px rgba(3, 4, 12, .18); --ui-radius: 18px; }
   body { background-attachment: scroll; }
