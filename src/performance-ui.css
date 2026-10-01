@@ -1,0 +1,135 @@
+:root {
+  --ui-surface: rgba(22, 24, 43, .92);
+  --ui-border: rgba(255, 255, 255, .1);
+  --ui-shadow: 0 16px 44px rgba(4, 5, 14, .22);
+  --ui-radius: 22px;
+}
+
+body {
+  background-color: #0c0d19;
+  background-attachment: fixed;
+  text-rendering: optimizeLegibility;
+}
+
+.shell { padding-bottom: 32px; }
+
+.topbar {
+  position: sticky;
+  top: 10px;
+  z-index: 40;
+  margin-bottom: 22px;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: 20px;
+  background: rgba(15, 17, 31, .9);
+  box-shadow: 0 12px 34px rgba(3, 4, 12, .2);
+  backdrop-filter: blur(14px);
+}
+
+.brand-mark { box-shadow: none; }
+.top-actions { gap: 10px; }
+.nav {
+  padding: 5px;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+}
+.nav button {
+  min-height: 38px;
+  padding: 8px 13px;
+  border-radius: 10px;
+  transition: background-color .16s ease, color .16s ease, transform .16s ease;
+}
+.nav button:hover { background: rgba(255,255,255,.07); transform: translateY(-1px); }
+.nav button.active { background: linear-gradient(135deg, #ffc857, #ff9d3b); color: #241708; box-shadow: none; }
+
+.hero, .community-card, .social-card, .viewed-profile, .missions-head,
+.roulette-card, .clicker-card, .casino-hero, .album-head, .odds-card,
+.shop-card, .stat, .theme-pack, .mission-card {
+  border-color: var(--ui-border);
+  box-shadow: var(--ui-shadow);
+}
+
+.section-title, .missions-head, .album-head, .odds-intro { margin-bottom: 18px; }
+.section-title h2, .missions-head h2, .album-head h2, .odds-intro h2 { letter-spacing: -.025em; }
+.section-title p:last-child, .missions-head p:last-child, .album-head p:last-child { max-width: 68ch; }
+
+button, select, input, textarea, .primary, .ghost { min-height: 44px; }
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible {
+  outline: 3px solid rgba(255, 200, 87, .5);
+  outline-offset: 2px;
+}
+.primary { box-shadow: 0 8px 22px rgba(255, 166, 60, .16); }
+.primary:hover:not(:disabled) { transform: translateY(-1px); }
+
+.album-grid { grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 16px; }
+.sticker {
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: 180px 270px;
+  transform: translateZ(0);
+}
+.sticker-photo { background: #111320; }
+.theme-pack, .mission-card, .feed-post, .trade-row, .community-card, .odds-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 360px;
+}
+.theme-pack { contain: layout paint style; }
+.theme-pack-skin img, .sticker img, .feed-post img, .trade-row img, .public-sticker img { object-fit: cover; }
+.view-hidden { display: none !important; }
+.site-foot { margin-top: 28px; }
+
+html.lite-mode *,
+html.lite-mode *::before,
+html.lite-mode *::after {
+  animation-duration: .001ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+}
+html.lite-mode body { background-image: linear-gradient(180deg, #121426, #0c0d19) !important; background-attachment: scroll; }
+html.lite-mode .topbar { backdrop-filter: none; }
+html.lite-mode .hero, html.lite-mode .community-card, html.lite-mode .social-card,
+html.lite-mode .viewed-profile, html.lite-mode .missions-head, html.lite-mode .roulette-card,
+html.lite-mode .clicker-card, html.lite-mode .casino-hero, html.lite-mode .album-head,
+html.lite-mode .odds-card, html.lite-mode .shop-card, html.lite-mode .stat,
+html.lite-mode .theme-pack, html.lite-mode .mission-card, html.lite-mode .sticker {
+  box-shadow: 0 6px 18px rgba(3, 4, 12, .16) !important;
+  filter: none !important;
+}
+html.lite-mode .sticker::before, html.lite-mode .sticker::after,
+html.lite-mode .pack-art::before, html.lite-mode .skin-shine { display: none !important; }
+
+@media (prefers-reduced-motion: reduce), (update: slow) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+  .topbar { backdrop-filter: none; }
+}
+
+@media (max-width: 760px) {
+  :root { --ui-shadow: 0 7px 20px rgba(3, 4, 12, .18); --ui-radius: 18px; }
+  body { background-attachment: scroll; }
+  .shell { width: min(100% - 20px, 1200px); }
+  .topbar { position: relative; top: 0; padding: 12px; backdrop-filter: none; }
+  .top-actions { width: 100%; }
+  .nav { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; gap: 4px; }
+  .nav button { padding: 8px 5px; font-size: .79rem; }
+  .wallet, .account { min-height: 40px; }
+  .hero { gap: 20px; }
+  .album-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+  .sticker { contain-intrinsic-size: 145px 230px; }
+  .theme-pack-grid, .mission-grid, .odds-grid, .community-grid, .social-grid { gap: 14px; }
+  .section-title, .missions-head, .album-head, .odds-intro, .casino-hero { padding: 18px; }
+  .primary:hover:not(:disabled), .nav button:hover { transform: none; }
+  .pack, .pack-art::before, .sticker::before, .sticker::after, .skin-shine { animation: none !important; }
+}
+
+@media (max-width: 390px) {
+  .shell { width: min(100% - 14px, 1200px); }
+  .topbar { border-radius: 16px; }
+  .brand small { display: none; }
+  .nav button { font-size: .73rem; }
+  .album-grid { gap: 8px; }
+}

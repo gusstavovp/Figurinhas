@@ -1,5 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
-import { createBeanHub } from './beans.js';
+import './performance-ui.css';
+
+const prefersLiteMode = window.matchMedia('(prefers-reduced-motion: reduce), (update: slow)').matches
+  || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4)
+  || (navigator.deviceMemory && navigator.deviceMemory <= 4);
+document.documentElement.classList.toggle('lite-mode', Boolean(prefersLiteMode));
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://umayamlvxcdccmkpghmg.supabase.co";
 const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "sb_publishable_R5rN_XnQ7u_B-bv900ZY1g_K6V_wIIl";
@@ -79,7 +84,7 @@ const cards = cardNames.map((name, index) => ({
   name,
   rarity: rarityFor(index + 1),
   icon: icons[index],
-  image: index + 1 === FALLEN_ANGEL_ID ? "/stickers/cards/111.png" : `/stickers/cards/${String(index + 1).padStart(3, "0")}.jpg`,
+  image: index + 1 === FALLEN_ANGEL_ID ? "/stickers/cards/111.jpg" : `/stickers/cards/${String(index + 1).padStart(3, "0")}.jpg`,
   description: index + 1 === FALLEN_ANGEL_ID ? "A figurinha mais rara do universo Pedro Víctor. Ela só se revela depois de ser encontrada, com 0,01% de chance em qualquer pacote ou na roleta." : `Uma versão única de Pedro Víctor para a coleção. ${rarityFor(index + 1) === "secret" ? "Esta figurinha secreta só aparece depois de ser descoberta." : "Encontre-a abrindo pacotes e cumprindo missões."}`
 }));
 
@@ -103,6 +108,7 @@ let currentUser = null, socialProfile = null, friends = [], friendships = [], tr
 let rankSort = "stickers", communityLoaded = false, viewedUserId = null;
 let pendingPackReveal = null, packOpenClicks = 0, packRevealTimer = null;
 let beanHub = null;
+let beanHubPromise = null;
 const byId = id => document.getElementById(id);
 const clickerOrigin = "https://suco-de-caju-clicker.vercel.app";
 const rarity = id => rarities.find(r => r.id === id);
@@ -175,7 +181,7 @@ function openClicker() {
   openModal("clickerModal");
   frame.src = `${clickerOrigin}/?embedded=1`;
 }
-function showDetail(card) { currentDetailCard = card; const r = rarity(card.rarity), icon = byId("detailIcon"); icon.className = `detail-icon rarity-${card.rarity}`; icon.style.setProperty("--rarity", r.color); icon.innerHTML = `<img src="${card.image}" alt="${card.name}">`; byId("detailRarity").textContent = `#${String(card.id).padStart(3, "0")} · ${r.name}`; byId("detailRarity").style.color = r.color; byId("detailTitle").textContent = card.name; byId("detailText").textContent = card.description + (state.owned[card.id] > 1 ? ` Você possui ${state.owned[card.id]} cópias.` : ""); openModal("detailModal"); }
+function showDetail(card) { currentDetailCard = card; const r = rarity(card.rarity), icon = byId("detailIcon"); icon.className = `detail-icon rarity-${card.rarity}`; icon.style.setProperty("--rarity", r.color); icon.innerHTML = `<img src="${card.image}" alt="${card.name}" decoding="async">`; byId("detailRarity").textContent = `#${String(card.id).padStart(3, "0")} · ${r.name}`; byId("detailRarity").style.color = r.color; byId("detailTitle").textContent = card.name; byId("detailText").textContent = card.description + (state.owned[card.id] > 1 ? ` Você possui ${state.owned[card.id]} cópias.` : ""); openModal("detailModal"); }
 function burst() { const box = byId("confetti"), colors = rarities.map(r => r.color); box.innerHTML = ""; for (let i = 0; i < 42; i++) { const piece = document.createElement("i"); piece.style.cssText = `left:${Math.random() * 100}%;--x:${(Math.random() - .5) * 300}px;--c:${colors[i % colors.length]};animation-delay:${Math.random() * .4}s`; box.appendChild(piece); } setTimeout(() => box.innerHTML = "", 2500); }
 function revealPackContents(payload, source) {
   const entries = payload.entries.map(entry => ({ card: cards.find(card => card.id === entry.id), isNew: entry.is_new })).filter(entry => entry.card), newCount = entries.filter(entry => entry.isNew).length, wonFallenAngel = entries.some(entry => entry.card.id === FALLEN_ANGEL_ID), packRarity = rarity(payload.pack_tier), visualRarity = wonFallenAngel ? rarity("supersecret") : packRarity;
@@ -236,7 +242,7 @@ async function spinRoulette() {
   finally { wheel.classList.remove("spinning"); }
 }
 function renderThemePacks() {
-  byId("themePackGrid").innerHTML = packThemes.map(theme => { const packSize = themePackSize(theme), image = `/stickers/cards/${String(theme.featured).padStart(3, "0")}.jpg`; return `<article class="theme-pack skin-${theme.id}" style="--theme:${theme.color};--theme-accent:${theme.accent}"><div class="theme-pack-skin"><span class="pack-crimp pack-crimp-top"></span><span class="pack-crimp pack-crimp-bottom"></span><span class="skin-series">PV · COLEÇÃO TEMÁTICA</span><span class="skin-icon" aria-hidden="true">${theme.icon}</span><img src="${image}" alt="Pedro Víctor na embalagem ${theme.name}" loading="lazy"><span class="skin-shine" aria-hidden="true"></span><span class="skin-title"><b>PEDRO VÍCTOR</b><strong>${theme.name}</strong></span><span class="skin-content">${packSize} FIGURINHAS</span></div><div class="theme-pack-head"><span>${theme.icon}</span><div><h3>Pedro Víctor ${theme.name}</h3><small>${theme.cardIds.length} figurinhas possíveis</small></div></div><p>${theme.description}</p><button class="primary" type="button" data-buy-theme="${theme.id}">Abrir pacote temático<span class="cost">40 🧃 · ${packSize} figurinhas</span></button></article>`; }).join("");
+  byId("themePackGrid").innerHTML = packThemes.map(theme => { const packSize = themePackSize(theme), image = `/stickers/cards/${String(theme.featured).padStart(3, "0")}.jpg`; return `<article class="theme-pack skin-${theme.id}" style="--theme:${theme.color};--theme-accent:${theme.accent}"><div class="theme-pack-skin"><span class="pack-crimp pack-crimp-top"></span><span class="pack-crimp pack-crimp-bottom"></span><span class="skin-series">PV · COLEÇÃO TEMÁTICA</span><span class="skin-icon" aria-hidden="true">${theme.icon}</span><img src="${image}" alt="Pedro Víctor na embalagem ${theme.name}" loading="lazy" decoding="async"><span class="skin-shine" aria-hidden="true"></span><span class="skin-title"><b>PEDRO VÍCTOR</b><strong>${theme.name}</strong></span><span class="skin-content">${packSize} FIGURINHAS</span></div><div class="theme-pack-head"><span>${theme.icon}</span><div><h3>Pedro Víctor ${theme.name}</h3><small>${theme.cardIds.length} figurinhas possíveis</small></div></div><p>${theme.description}</p><button class="primary" type="button" data-buy-theme="${theme.id}">Abrir pacote temático<span class="cost">40 🧃 · ${packSize} figurinhas</span></button></article>`; }).join("");
   document.querySelectorAll("[data-buy-theme]").forEach(button => button.onclick = () => buyTheme(button.dataset.buyTheme));
 }
 async function completeActivity(id, score) {
@@ -251,7 +257,7 @@ function setActiveView(view, updateHash = true) {
   document.querySelectorAll("[data-jump]").forEach(button => { const active = button.dataset.jump === validView; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); });
   if (updateHash) history.replaceState(null, "", `#${validView}`);
   if (validView === "community" && currentUser) loadLeaderboard().catch(showCommunityError);
-  if (validView === "casino" && currentUser) beanHub?.refresh();
+  if (validView === "casino" && currentUser) ensureBeanHub().then(hub => hub.refresh()).catch(error => console.error("Cassino:", error));
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 const ownedCards = () => cards.filter(card => (state.owned[card.id] || 0) > 0);
@@ -422,13 +428,13 @@ function renderFriends() {
   document.querySelectorAll("[data-trade-friend]").forEach(button => button.onclick = () => { byId("tradeFriend").value = button.dataset.tradeFriend; byId("tradeFriend").dispatchEvent(new Event("change")); setActiveView("trades"); });
 }
 function renderFeed(posts) {
-  byId("feedList").innerHTML = posts.length ? posts.map(post => { const card = cards.find(item => item.id === post.card_id), r = rarity(card.rarity), ownPost = post.user_id === currentUser.id; return `<article class="feed-post" style="--post-color:${r.color}"><img src="${card.image}" alt="${escapeHtml(card.name)}"><div><div class="post-head"><div class="post-meta"><b>${escapeHtml(post.author.display_name)}</b> · @${escapeHtml(post.author.handle)} · ${new Date(post.created_at).toLocaleDateString("pt-BR")}</div>${ownPost ? `<button class="post-delete" type="button" data-delete-post="${post.id}" aria-label="Excluir esta publicação">Excluir</button>` : ""}</div><p class="post-caption">${escapeHtml(post.caption) || "Compartilhou uma nova favorita."}</p><div class="post-card-name">#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)} · ${r.name}</div></div></article>`; }).join("") : '<div class="empty-small">O feed está vazio. Publique uma figurinha ou adicione amigos.</div>';
+  byId("feedList").innerHTML = posts.length ? posts.map(post => { const card = cards.find(item => item.id === post.card_id), r = rarity(card.rarity), ownPost = post.user_id === currentUser.id; return `<article class="feed-post" style="--post-color:${r.color}"><img src="${card.image}" alt="${escapeHtml(card.name)}" loading="lazy" decoding="async"><div><div class="post-head"><div class="post-meta"><b>${escapeHtml(post.author.display_name)}</b> · @${escapeHtml(post.author.handle)} · ${new Date(post.created_at).toLocaleDateString("pt-BR")}</div>${ownPost ? `<button class="post-delete" type="button" data-delete-post="${post.id}" aria-label="Excluir esta publicação">Excluir</button>` : ""}</div><p class="post-caption">${escapeHtml(post.caption) || "Compartilhou uma nova favorita."}</p><div class="post-card-name">#${String(card.id).padStart(3, "0")} · ${escapeHtml(card.name)} · ${r.name}</div></div></article>`; }).join("") : '<div class="empty-small">O feed está vazio. Publique uma figurinha ou adicione amigos.</div>';
   document.querySelectorAll("[data-delete-post]").forEach(button => button.onclick = () => { postPendingDelete = Number(button.dataset.deletePost); openModal("deletePostModal"); });
 }
 function tradeParty(trade) { return trade.proposer_id === currentUser.id ? trade.recipient : trade.proposer; }
 function renderTrades() {
   const pending = trades.filter(trade => trade.status === "pending");
-  byId("tradeList").innerHTML = pending.length ? pending.map(trade => { const offered = cards.find(card => card.id === trade.offered_card_id), requested = cards.find(card => card.id === trade.requested_card_id), other = tradeParty(trade), incoming = trade.recipient_id === currentUser.id; return `<div class="trade-row"><img src="${offered.image}" alt="${escapeHtml(offered.name)}"><div><b>#${String(offered.id).padStart(3, "0")} · ${escapeHtml(offered.name)}</b><small>${incoming ? `${escapeHtml(other.display_name)} oferece` : "Você oferece"} · ${rarity(offered.rarity).name}</small></div><b>↔</b><img src="${requested.image}" alt="${escapeHtml(requested.name)}"><div><b>#${String(requested.id).padStart(3, "0")} · ${escapeHtml(requested.name)}</b><small>${incoming ? "Em troca da sua" : `De ${escapeHtml(other.display_name)}`} · ${rarity(requested.rarity).name}</small></div><div class="row-actions">${incoming ? `<button class="primary" data-trade-response="${trade.id}" data-accept="true">Aceitar</button><button class="ghost" data-trade-response="${trade.id}" data-accept="false">Recusar</button>` : `<button class="ghost" data-trade-cancel="${trade.id}">Cancelar</button>`}</div></div>`; }).join("") : '<div class="empty-small">Nenhuma troca pendente.</div>';
+  byId("tradeList").innerHTML = pending.length ? pending.map(trade => { const offered = cards.find(card => card.id === trade.offered_card_id), requested = cards.find(card => card.id === trade.requested_card_id), other = tradeParty(trade), incoming = trade.recipient_id === currentUser.id; return `<div class="trade-row"><img src="${offered.image}" alt="${escapeHtml(offered.name)}" loading="lazy" decoding="async"><div><b>#${String(offered.id).padStart(3, "0")} · ${escapeHtml(offered.name)}</b><small>${incoming ? `${escapeHtml(other.display_name)} oferece` : "Você oferece"} · ${rarity(offered.rarity).name}</small></div><b>↔</b><img src="${requested.image}" alt="${escapeHtml(requested.name)}" loading="lazy" decoding="async"><div><b>#${String(requested.id).padStart(3, "0")} · ${escapeHtml(requested.name)}</b><small>${incoming ? "Em troca da sua" : `De ${escapeHtml(other.display_name)}`} · ${rarity(requested.rarity).name}</small></div><div class="row-actions">${incoming ? `<button class="primary" data-trade-response="${trade.id}" data-accept="true">Aceitar</button><button class="ghost" data-trade-response="${trade.id}" data-accept="false">Recusar</button>` : `<button class="ghost" data-trade-cancel="${trade.id}">Cancelar</button>`}</div></div>`; }).join("") : '<div class="empty-small">Nenhuma troca pendente.</div>';
   document.querySelectorAll("[data-trade-response]").forEach(button => button.onclick = () => respondTrade(Number(button.dataset.tradeResponse), button.dataset.accept === "true"));
   document.querySelectorAll("[data-trade-cancel]").forEach(button => button.onclick = () => cancelTrade(Number(button.dataset.tradeCancel)));
 }
@@ -533,8 +539,7 @@ async function loadProfile(user) {
   if (profileError) throw profileError; if (progressError) throw progressError;
   state.owned = progress.owned || {}; state.juice = progress.coins || 0; state.lastOpened = progress.last_daily_pack; state.packs = progress.packs_opened || 0; state.activities = progress.daily_activity_date === todayKey() ? (progress.daily_activities || {}) : {}; state.activityDate = progress.daily_activity_date; state.lastRouletteSpin = progress.last_roulette_spin; dailyAvailable = progress.last_daily_pack !== todayKey();
   byId("accountEmail").textContent = profile.name || profile.email; byId("authGate").classList.add("ready"); renderOdds(); renderAll();
-  beanHub?.refresh();
-  if (new URLSearchParams(location.search).has('arcade')) setTimeout(() => setActiveView('casino'), 250);
+  if (location.hash === '#casino' || new URLSearchParams(location.search).has('arcade')) setTimeout(() => setActiveView('casino'), 250);
   try { await refreshSocial(); if (location.hash === "#community") await loadLeaderboard(); } catch (error) { byId("feedList").innerHTML = `<div class="empty-small">Não foi possível carregar a área social: ${escapeHtml(error.message)}</div>`; }
 }
 function showPasswordRecoveryForm() {
@@ -649,14 +654,21 @@ async function initialize() {
 }
 
 document.querySelectorAll("[data-jump]").forEach(button => button.onclick = () => setActiveView(button.dataset.jump));
-beanHub = createBeanHub({client:supabase,cards,rarities,getUser:()=>currentUser,onChanged:async kind=>{
-  if (kind !== 'game') {
-    const {data,error}=await supabase.from('album_progress').select('owned,coins').eq('user_id',currentUser.id).single();
-    if(error) throw error;
-    state.owned=data.owned;state.juice=data.coins;renderAll();
-    byId('clickerFrame').contentWindow?.postMessage({type:'album-economy-refresh'},clickerOrigin);
-  }
-}});
+async function ensureBeanHub() {
+  if (beanHub) return beanHub;
+  if (!beanHubPromise) beanHubPromise = import('./beans.js').then(({createBeanHub}) => {
+    beanHub = createBeanHub({client:supabase,cards,rarities,getUser:()=>currentUser,onChanged:async kind=>{
+      if (kind !== 'game') {
+        const {data,error}=await supabase.from('album_progress').select('owned,coins').eq('user_id',currentUser.id).single();
+        if(error) throw error;
+        state.owned=data.owned;state.juice=data.coins;renderAll();
+        byId('clickerFrame').contentWindow?.postMessage({type:'album-economy-refresh'},clickerOrigin);
+      }
+    }});
+    return beanHub;
+  });
+  return beanHubPromise;
+}
 document.querySelectorAll("[data-rank-sort]").forEach(button => button.onclick = async () => { rankSort = button.dataset.rankSort; document.querySelectorAll("[data-rank-sort]").forEach(item => item.classList.toggle("active", item === button)); communityLoaded = false; try { await loadLeaderboard(true); } catch (error) { showCommunityError(error); } });
 byId("userSearchForm").addEventListener("submit", async event => { event.preventDefault(); const query = byId("userSearchInput").value.trim(); if (!query) return; const button = event.submitter; button.disabled = true; try { await searchCommunityUsers(query); } catch (error) { byId("userSearchResults").innerHTML = `<div class="empty-small">${escapeHtml(error.message)}</div>`; } finally { button.disabled = false; } });
 byId("openProfileSettings").onclick = () => { setActiveView("community"); setTimeout(() => byId("profileName").focus(), 250); };
@@ -678,7 +690,7 @@ byId("openClicker").onclick = openClicker;
 byId("clickerFrame").addEventListener("load", sendClickerAuth);
 window.addEventListener("message", event => {
   if (event.origin !== clickerOrigin || event.source !== byId('clickerFrame').contentWindow) return;
-  if (event.data?.type === 'clicker-open-beans') { closeModal('clickerModal'); setActiveView('missions'); setTimeout(()=>byId('beanHub').scrollIntoView({behavior:'smooth',block:'start'}),150); }
+  if (event.data?.type === 'clicker-open-beans') { closeModal('clickerModal'); setActiveView('casino'); }
   if (event.data?.type === "clicker-ready") sendClickerAuth();
   if (event.data?.type === "clicker-reward" && Number.isFinite(Number(event.data.coins))) {
     state.juice = Number(event.data.coins);
